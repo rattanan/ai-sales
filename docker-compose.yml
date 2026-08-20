@@ -1,0 +1,167 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: ai_dashboard
+      POSTGRES_USER: ai_dashboard
+      POSTGRES_PASSWORD: ai_dashboard
+    ports: ["5432:5432"]
+    command:
+      - postgres
+      - -c
+      - log_min_duration_statement=${SLOW_QUERY_THRESHOLD_MS:-1000}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ai_dashboard -d ai_dashboard"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+  redis:
+    image: redis:7.4-alpine
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --requirepass
+      - ${REDIS_PASSWORD:-insightkm_redis}
+      - --maxmemory-policy
+      - noeviction
+    ports: ["6379:6379"]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "redis-cli -a ${REDIS_PASSWORD:-insightkm_redis} ping | grep PONG",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes: ["redis-data:/data"]
+  storage-init:
+    image: node:22-alpine
+    user: "0:0"
+    command:
+      - sh
+      - -c
+      - mkdir -p /app/.data/uploads && chown -R 1001:1001 /app/.data/uploads && chmod 0770 /app/.data/uploads
+    volumes: ["uploads-data:/app/.data/uploads"]
+    restart: "no"
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    environment:
+      DATABASE_URL: postgresql://ai_dashboard:ai_dashboard@postgres:5432/ai_dashboard?schema=public
+      CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
+      CREDENTIAL_KEY_VERSION: ${CREDENTIAL_KEY_VERSION:-env-v1}
+      CREDENTIAL_ENCRYPTION_PREVIOUS_KEYS: ${CREDENTIAL_ENCRYPTION_PREVIOUS_KEYS:-}
+      LOCAL_STORAGE_PATH: /app/.data/uploads
+      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-https://ollama.rattanan.dev/api/embed}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-qwen3-embedding:4b}
+      EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-16}
+      EMBEDDING_BATCH_CONCURRENCY: ${EMBEDDING_BATCH_CONCURRENCY:-1}
+      KNOWLEDGE_CHUNK_MAX_TOKENS: ${KNOWLEDGE_CHUNK_MAX_TOKENS:-400}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-insightkm_redis}@redis:6379/0
+      BULLMQ_PREFIX: insightkm
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
+      WORKER_RATE_LIMIT_MAX: ${WORKER_RATE_LIMIT_MAX:-50}
+      WORKER_RATE_LIMIT_DURATION_MS: ${WORKER_RATE_LIMIT_DURATION_MS:-1000}
+      QUEUE_MAX_WAITING_JOBS: ${QUEUE_MAX_WAITING_JOBS:-5000}
+      WORKER_HEALTH_TIMEOUT_MS: 10000
+      KNOWLEDGE_SHARED_FOLDER_ROOTS: /mnt/insightkm-knowledge
+      KNOWLEDGE_SHARED_FOLDER_MAX_FILES: ${KNOWLEDGE_SHARED_FOLDER_MAX_FILES:-10000}
+      KNOWLEDGE_WEB_MAX_BYTES: ${KNOWLEDGE_WEB_MAX_BYTES:-5242880}
+      KNOWLEDGE_WEB_TIMEOUT_MS: ${KNOWLEDGE_WEB_TIMEOUT_MS:-15000}
+      KNOWLEDGE_WEB_MAX_REDIRECTS: ${KNOWLEDGE_WEB_MAX_REDIRECTS:-3}
+      GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON: ${GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON}
+    volumes:
+      - uploads-data:/app/.data/uploads
+      - ${KNOWLEDGE_SHARED_FOLDER_HOST_PATH:-./.data/shared}:/mnt/insightkm-knowledge:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      storage-init: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "node", "dist-worker/apps/worker/health.js"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    stop_grace_period: 45s
+  mysql-fixture:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: analytics_fixture
+      MYSQL_USER: readonly_user
+      MYSQL_PASSWORD: readonly_password
+      MYSQL_ROOT_PASSWORD: root_password
+    ports: ["${MYSQL_FIXTURE_PORT:-3307}:3306"]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot_password"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - ./docker/mysql-init:/docker-entrypoint-initdb.d:ro
+      - mysql-data:/var/lib/mysql
+  app:
+    profiles: ["app"]
+    build: .
+    environment:
+      DATABASE_URL: postgresql://ai_dashboard:ai_dashboard@postgres:5432/ai_dashboard?schema=public
+      AUTH_SECRET: local-docker-auth-secret-change-in-production
+      AUTH_TRUST_HOST: "true"
+      CREDENTIAL_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      CREDENTIAL_KEY_VERSION: ${CREDENTIAL_KEY_VERSION:-env-v1}
+      CREDENTIAL_ENCRYPTION_PREVIOUS_KEYS: ${CREDENTIAL_ENCRYPTION_PREVIOUS_KEYS:-}
+      APP_URL: http://localhost:8080
+      OBJECT_STORAGE_DRIVER: local
+      LOCAL_STORAGE_PATH: /app/.data/uploads
+      REDIS_URL: redis://:${REDIS_PASSWORD:-insightkm_redis}@redis:6379/0
+      SERVER_ACTION_ALLOWED_ORIGINS: ${SERVER_ACTION_ALLOWED_ORIGINS:-localhost:8080}
+      QUEUE_MAX_WAITING_JOBS: ${QUEUE_MAX_WAITING_JOBS:-5000}
+      SLOW_QUERY_THRESHOLD_MS: ${SLOW_QUERY_THRESHOLD_MS:-1000}
+      KNOWLEDGE_SHARED_FOLDER_ROOTS: /mnt/insightkm-knowledge
+      KNOWLEDGE_SHARED_FOLDER_MAX_FILES: ${KNOWLEDGE_SHARED_FOLDER_MAX_FILES:-10000}
+      KNOWLEDGE_WEB_MAX_BYTES: ${KNOWLEDGE_WEB_MAX_BYTES:-5242880}
+      KNOWLEDGE_WEB_TIMEOUT_MS: ${KNOWLEDGE_WEB_TIMEOUT_MS:-15000}
+      KNOWLEDGE_WEB_MAX_REDIRECTS: ${KNOWLEDGE_WEB_MAX_REDIRECTS:-3}
+      GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON: ${GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON}
+      HOSTNAME: 0.0.0.0
+    expose: ["8080"]
+    volumes: ["uploads-data:/app/.data/uploads"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8080/api/v1/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+    stop_grace_period: 30s
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      worker: { condition: service_healthy }
+  nginx:
+    profiles: ["app"]
+    image: nginx:1.27-alpine
+    ports: ["8080:8080"]
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./docker/proxy_params:/etc/nginx/proxy_params:ro
+    depends_on:
+      app: { condition: service_healthy }
+    restart: unless-stopped
+    stop_grace_period: 15s
+volumes:
+  postgres-data:
+  redis-data:
+  mysql-data:
+  uploads-data:

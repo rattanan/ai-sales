@@ -1,0 +1,1 @@
+ALTER TYPE "LegacyApiAuthType" ADD VALUE 'QUERY_API_KEY';

@@ -1,0 +1,11 @@
+services:
+  storage-init:
+    volumes:
+      - ./.data/uploads:/app/.data/uploads
+  worker:
+    volumes:
+      - ./.data/uploads:/app/.data/uploads
+      - ${KNOWLEDGE_SHARED_FOLDER_HOST_PATH:-./.data/shared}:/mnt/insightkm-knowledge:ro
+  app:
+    volumes:
+      - ./.data/uploads:/app/.data/uploads

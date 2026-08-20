@@ -1,0 +1,3 @@
+ALTER TABLE "LlmProvider"
+ADD COLUMN "lastChatHealthStatus" TEXT NOT NULL DEFAULT 'UNKNOWN',
+ADD COLUMN "lastEmbeddingHealthStatus" TEXT NOT NULL DEFAULT 'UNKNOWN';

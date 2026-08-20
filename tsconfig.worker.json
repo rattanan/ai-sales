@@ -1,0 +1,24 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": false,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "incremental": false,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noEmit": false,
+    "outDir": "dist-worker",
+    "rootDir": ".",
+    "sourceMap": true
+  },
+  "include": [
+    "apps/worker/**/*.ts",
+    "packages/queue/**/*.ts",
+    "packages/knowledge/**/*.ts",
+    "packages/ai/**/*.ts",
+    "packages/insights/**/*.ts",
+    "schemas/worker-env.ts"
+  ],
+  "exclude": ["node_modules", "tests"]
+}

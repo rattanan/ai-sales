@@ -1,0 +1,29 @@
+export const AUDIT_EVENTS = {
+  identity: [
+    "LOGIN_SUCCESS",
+    "LOGIN_FAILED",
+    "LOGOUT",
+    "LOGOUT_ALL_SESSIONS",
+    "PROFILE_UPDATED",
+    "USER_CREATED",
+    "USER_UPDATED",
+    "USER_ROLE_CHANGED",
+    "USER_PASSWORD_RESET",
+  ],
+  organization: [
+    "ORGANIZATION_UNIT_CREATED",
+    "PROJECT_CREATED",
+    "ORGANIZATION_SCOPE_ENABLED",
+    "ORGANIZATION_SCOPE_DISABLED",
+  ],
+  provider: [
+    "LLM_PROVIDER_CREATED",
+    "LLM_PROVIDER_UPDATED",
+    "LLM_PROVIDER_TESTED",
+    "LLM_PROVIDER_DELETED",
+  ],
+  system: ["PRIVACY_RETENTION_UPDATED", "PERMISSION_DENIED"],
+} as const;
+
+export type AuditEventName =
+  (typeof AUDIT_EVENTS)[keyof typeof AUDIT_EVENTS][number];

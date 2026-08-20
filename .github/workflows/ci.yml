@@ -1,0 +1,74 @@
+name: InsightKM CI
+
+on:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_DB: insightkm_test
+          POSTGRES_USER: insightkm
+          POSTGRES_PASSWORD: insightkm
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U insightkm -d insightkm_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7.4-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: analytics_fixture
+          MYSQL_USER: readonly_user
+          MYSQL_PASSWORD: readonly_password
+          MYSQL_ROOT_PASSWORD: root_password
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost -proot_password"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://insightkm:insightkm@127.0.0.1:5432/insightkm_test?schema=public
+      TEST_DATABASE_URL: postgresql://insightkm:insightkm@127.0.0.1:5432/insightkm_test?schema=public
+      TEST_MYSQL_HOST: 127.0.0.1
+      TEST_MYSQL_PORT: 3306
+      REDIS_URL: redis://127.0.0.1:6379/0
+      AUTH_SECRET: ci-auth-secret-with-at-least-32-characters
+      CREDENTIAL_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      AI_BASE_URL: http://mock-ai.test/v1
+      AI_MODEL: mock-analysis-model
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Load MySQL connector fixture
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y default-mysql-client
+          mysql -h 127.0.0.1 -uroot -proot_password < docker/mysql-init/001-fixture.sql
+      - run: npm run db:generate
+      - run: npm run db:deploy
+      - run: npm run format:check
+      - run: npm run worker:build
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build

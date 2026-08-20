@@ -1,0 +1,2 @@
+ALTER TABLE "KnowledgeRack"
+ADD COLUMN "scope" "SourceScope" NOT NULL DEFAULT 'SELECTED_BOTS';
