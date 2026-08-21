@@ -30,6 +30,10 @@ import {
 } from "@/server/services/ai-endpoint-service";
 import { fetchAiWithRetry } from "@/packages/ai/fetch-with-retry";
 import { readChatCompletionResponse } from "@/server/ai/chat-completion-stream";
+import {
+  orchestrateNtopChat,
+  type NtopChatOutcome,
+} from "@/server/services/ntop-chat-orchestrator";
 
 function isThai(value: string) {
   return /[\u0E00-\u0E7F]/.test(value);
@@ -593,6 +597,16 @@ export async function sendKnowledgeChatMessage(
       },
     },
   });
+  const ntopOutcome: NtopChatOutcome = await orchestrateNtopChat(
+    context.userId,
+    input.message,
+  ).catch(() => ({
+    evidence: [],
+    toolUsed: true,
+    message: isThai(input.message)
+      ? "ไม่สามารถเชื่อมต่อ NTOP Business Memory ได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง"
+      : "NTOP Business Memory is currently unavailable. Please try again.",
+  }));
   const startedAt = performance.now();
   let databaseQuestion = input.message;
   let databaseQueryConfirmed = false;
@@ -621,7 +635,7 @@ export async function sendKnowledgeChatMessage(
     }
   }
   const databaseAnswer =
-    databaseScope && bot.databaseToolsEnabled
+    !ntopOutcome.toolUsed && databaseScope && bot.databaseToolsEnabled
       ? await answerFromAssignedDatabase(context, bot, databaseQuestion, {
           forceQuery:
             databaseQueryConfirmed ||
@@ -629,41 +643,44 @@ export async function sendKnowledgeChatMessage(
             input.mode === "QUERY_LIVE_DATA",
         })
       : null;
-  const legacyApiAnswer = databaseAnswer
-    ? null
-    : ["SMART", "ALL_ACCESSIBLE", "API_TOOLS"].includes(scope) &&
-        bot.apiToolsEnabled
-      ? await answerFromAssignedLegacyApi(context, bot.id, input.message, {
-          forceApi:
-            scope === "API_TOOLS" ||
-            input.mode === "QUERY_LIVE_DATA" ||
-            hasExplicitApiToolIntent(input.message),
-        })
-      : null;
+  const legacyApiAnswer =
+    databaseAnswer || ntopOutcome.toolUsed
+      ? null
+      : ["SMART", "ALL_ACCESSIBLE", "API_TOOLS"].includes(scope) &&
+          bot.apiToolsEnabled
+        ? await answerFromAssignedLegacyApi(context, bot.id, input.message, {
+            forceApi:
+              scope === "API_TOOLS" ||
+              input.mode === "QUERY_LIVE_DATA" ||
+              hasExplicitApiToolIntent(input.message),
+          })
+        : null;
   const isolatedScope = ["CONVERSATION_HISTORY", "BUSINESS_INSIGHT"].includes(
     scope,
   )
     ? (scope as "CONVERSATION_HISTORY" | "BUSINESS_INSIGHT")
     : null;
-  const [evidence, memory, privacyPolicy] = await Promise.all([
+  const [retrievedEvidence, memory, privacyPolicy] = await Promise.all([
     databaseAnswer || legacyApiAnswer
       ? Promise.resolve([] as GroundingEvidence[])
-      : isolatedScope
-        ? scopedChatEvidence(
-            context,
-            isolatedScope,
-            input.message,
-            userMessage.id,
-          )
-        : retrieveBotContext(context, bot.id, input.message, {
-            allAccessible: [
-              "ALL_ACCESSIBLE",
-              "DOCUMENTS",
-              "SPECIFIC_SOURCES",
-            ].includes(scope),
-            sourceIds:
-              scope === "SPECIFIC_SOURCES" ? input.sourceIds : undefined,
-          }),
+      : ntopOutcome.action || ntopOutcome.message
+        ? Promise.resolve([] as GroundingEvidence[])
+        : isolatedScope
+          ? scopedChatEvidence(
+              context,
+              isolatedScope,
+              input.message,
+              userMessage.id,
+            )
+          : retrieveBotContext(context, bot.id, input.message, {
+              allAccessible: [
+                "ALL_ACCESSIBLE",
+                "DOCUMENTS",
+                "SPECIFIC_SOURCES",
+              ].includes(scope),
+              sourceIds:
+                scope === "SPECIFIC_SOURCES" ? input.sourceIds : undefined,
+            }),
     conversationMemoryForPrompt(context, {
       conversationId: conversation.id,
       botId: bot.id,
@@ -673,6 +690,10 @@ export async function sendKnowledgeChatMessage(
     }),
     getEffectiveAiPrivacyPolicy(context.organizationId),
   ]);
+  const evidence = [
+    ...ntopOutcome.evidence,
+    ...retrievedEvidence,
+  ] as GroundingEvidence[];
   let answer: {
     content: string;
     inputTokens?: number;
@@ -685,7 +706,15 @@ export async function sendKnowledgeChatMessage(
     emittedToken = true;
     await input.onToken(token);
   };
-  if (databaseAnswer) {
+  if (ntopOutcome.action) {
+    answer = {
+      content: isThai(input.message)
+        ? `${ntopOutcome.action.summary}\n\nกรุณาตรวจสอบข้อมูลและกดปุ่มยืนยันก่อนบันทึกลง NTOP ระบบจะไม่สร้าง Record โดยอัตโนมัติ`
+        : `${ntopOutcome.action.summary}\n\nReview the details and confirm before saving to NTOP. No record will be created automatically.`,
+    };
+  } else if (ntopOutcome.message) {
+    answer = { content: ntopOutcome.message };
+  } else if (databaseAnswer) {
     answer = { content: databaseAnswer.content };
     if (databaseAnswer.failed) errorCode = "DATABASE_QUERY_ERROR";
   } else if (legacyApiAnswer) {
@@ -720,7 +749,7 @@ export async function sendKnowledgeChatMessage(
     }
   }
   if (!emittedToken) await emitToken(answer.content);
-  const assistant = await db.$transaction(async (tx) => {
+  const completedTurn = await db.$transaction(async (tx) => {
     const message = await tx.chatMessage.create({
       data: {
         conversationId: conversation.id,
@@ -840,10 +869,42 @@ export async function sendKnowledgeChatMessage(
                   errorCode: legacyApiAnswer.failed ? "LEGACY_API_ERROR" : null,
                 },
               }
-            : undefined,
+            : ntopOutcome.toolUsed
+              ? {
+                  create: {
+                    toolType: ntopOutcome.action
+                      ? "NTOP_WRITE_PROPOSAL"
+                      : "NTOP_READ",
+                    status: "COMPLETED",
+                    maskedInput: {
+                      question: maskFreeText(input.message, privacyPolicy),
+                    },
+                    maskedOutput: {
+                      recordCount: ntopOutcome.evidence.length,
+                      proposedAction: ntopOutcome.action?.type ?? null,
+                    },
+                  },
+                }
+              : undefined,
       },
       include: { citations: true },
     });
+    const action = ntopOutcome.action
+      ? await tx.ntopActionProposal.create({
+          data: {
+            organizationId: context.organizationId,
+            userId: context.userId,
+            conversationId: conversation.id,
+            messageId: message.id,
+            type: ntopOutcome.action.type,
+            title: ntopOutcome.action.title,
+            summary: ntopOutcome.action.summary,
+            payload: ntopOutcome.action.payload as Prisma.InputJsonValue,
+            idempotencyKey: crypto.randomUUID(),
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1_000),
+          },
+        })
+      : null;
     await tx.conversation.update({
       where: { id: conversation.id },
       data: { lastMessageAt: new Date() },
@@ -865,8 +926,9 @@ export async function sendKnowledgeChatMessage(
         },
       },
     });
-    return message;
+    return { message, action };
   });
+  const assistant = completedTurn.message;
   return success({
     conversation: { id: conversation.id, title: conversation.title },
     userMessage: { id: userMessage.id, content: userMessage.content },
@@ -892,7 +954,23 @@ export async function sendKnowledgeChatMessage(
               type: "API_TOOL",
               status: legacyApiAnswer.failed ? "FAILED" : "COMPLETED",
             }
-          : undefined,
+          : ntopOutcome.toolUsed
+            ? {
+                type: ntopOutcome.action ? "NTOP_WRITE_PROPOSAL" : "NTOP_READ",
+                status: "COMPLETED",
+              }
+            : undefined,
+      suggestedAction: completedTurn.action
+        ? {
+            id: completedTurn.action.id,
+            type: completedTurn.action.type,
+            status: completedTurn.action.status,
+            title: completedTurn.action.title,
+            summary: completedTurn.action.summary,
+            expiresAt: completedTurn.action.expiresAt.toISOString(),
+            errorMessage: completedTurn.action.errorMessage,
+          }
+        : undefined,
     },
   });
 }

@@ -15,6 +15,7 @@ import {
   deleteUserSchema,
 } from "@/schemas/admin";
 import { failure, success, type AppResult } from "@/types/result";
+import { encryptedNtopApiKey } from "@/server/services/ntop-credential-service";
 
 const passwordHash = (password: string) =>
   hash(password, { algorithm: 2, memoryCost: 19456, timeCost: 2 });
@@ -72,6 +73,8 @@ export async function createUserAction(_state: unknown, formData: FormData) {
   if (existing)
     return failure("CONFLICT", "Email or username is already in use.");
   const user = await db.$transaction(async (tx) => {
+    const ntopCredential: Partial<ReturnType<typeof encryptedNtopApiKey>> =
+      parsed.data.ntopApiKey ? encryptedNtopApiKey(parsed.data.ntopApiKey) : {};
     const created = await tx.user.create({
       data: {
         name: parsed.data.name,
@@ -81,6 +84,7 @@ export async function createUserAction(_state: unknown, formData: FormData) {
         status: parsed.data.status,
         mustChangePassword: parsed.data.forcePasswordChange,
         createdById: context.userId,
+        ...ntopCredential,
         memberships: {
           create: {
             organizationId: context.organizationId,
@@ -120,6 +124,10 @@ export async function createUserAction(_state: unknown, formData: FormData) {
           role: role.name,
           organizationUnitId: parsed.data.organizationUnitId,
           projectIds: parsed.data.projectIds,
+          ntopApiKeyConfigured: Boolean(parsed.data.ntopApiKey),
+          ntopApiKeyPrefix: parsed.data.ntopApiKey
+            ? ntopCredential.ntopApiKeyPrefix
+            : null,
         },
       },
     });
@@ -291,12 +299,17 @@ export async function updateUserAction(_state: unknown, formData: FormData) {
   if (!membership) return failure("NOT_FOUND", "Membership not found.");
   try {
     await db.$transaction(async (tx) => {
+      const ntopCredential: Partial<ReturnType<typeof encryptedNtopApiKey>> =
+        parsed.data.ntopApiKey
+          ? encryptedNtopApiKey(parsed.data.ntopApiKey)
+          : {};
       await tx.user.update({
         where: { id: before.id },
         data: {
           name: parsed.data.name,
           email: parsed.data.email,
           username: parsed.data.username,
+          ...ntopCredential,
         },
       });
       await tx.organizationMember.update({
@@ -348,6 +361,11 @@ export async function updateUserAction(_state: unknown, formData: FormData) {
             copilotEnabled: parsed.data.copilotEnabled,
             organizationUnitId: parsed.data.organizationUnitId,
             projectIds: parsed.data.projectIds,
+            ntopApiKeyConfigured: Boolean(
+              parsed.data.ntopApiKey || before.ntopApiKeyCiphertext,
+            ),
+            ntopApiKeyPrefix:
+              ntopCredential.ntopApiKeyPrefix ?? before.ntopApiKeyPrefix,
           },
         },
       });

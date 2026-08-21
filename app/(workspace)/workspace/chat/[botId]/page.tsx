@@ -89,6 +89,7 @@ export default async function KnowledgeChatPage({
             include: {
               citations: { orderBy: { rank: "asc" } },
               feedback: true,
+              ntopActions: { orderBy: { createdAt: "desc" }, take: 1 },
             },
             orderBy: { createdAt: "asc" },
           },
@@ -119,6 +120,17 @@ export default async function KnowledgeChatPage({
         content: message.content,
         errorCode: message.errorCode,
         rating: message.feedback?.rating,
+        suggestedAction: message.ntopActions[0]
+          ? {
+              id: message.ntopActions[0].id,
+              type: message.ntopActions[0].type,
+              status: message.ntopActions[0].status,
+              title: message.ntopActions[0].title,
+              summary: message.ntopActions[0].summary,
+              expiresAt: message.ntopActions[0].expiresAt.toISOString(),
+              errorMessage: message.ntopActions[0].errorMessage,
+            }
+          : undefined,
         citations: message.citations.map((citation) => ({
           id: citation.id,
           rank: citation.rank,

@@ -19,6 +19,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { MessageFeedbackButtons } from "@/components/chat/message-feedback-buttons";
 import { readChatStream } from "@/lib/chat-stream";
+import { NtopActionCard } from "@/components/chat/ntop-action-card";
+import type { NtopSuggestedAction } from "@/schemas/ntop";
 
 type Message = {
   id: string;
@@ -33,6 +35,7 @@ type Message = {
   }>;
   toolActivity?: { type: string; status: string };
   rating?: number | null;
+  suggestedAction?: NtopSuggestedAction;
 };
 
 type ChatTurnResult = {
@@ -402,6 +405,9 @@ export function UniversalChat({
                   Tool: {item.toolActivity.type.replaceAll("_", " ")} ·{" "}
                   {item.toolActivity.status}
                 </p>
+              ) : null}
+              {item.suggestedAction ? (
+                <NtopActionCard action={item.suggestedAction} />
               ) : null}
               {item.citations.length ? (
                 <details className="mt-2 rounded-lg border bg-white px-3 py-2 text-sm">

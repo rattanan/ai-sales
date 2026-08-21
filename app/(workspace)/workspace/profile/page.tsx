@@ -9,6 +9,7 @@ import {
 } from "@/features/auth/actions";
 import { requireAuthorization, requireUser } from "@/server/auth/authorization";
 import { db } from "@/server/db";
+import { NtopConnectionForm } from "@/components/profile/ntop-connection-form";
 
 export default async function ProfilePage() {
   const [sessionUser, context] = await Promise.all([
@@ -86,6 +87,17 @@ export default async function ProfilePage() {
             </div>
           </dl>
         </div>
+      </section>
+      <section className="rounded-xl border bg-card p-5">
+        <h2 className="font-semibold">NTOP Business Memory</h2>
+        <p className="my-2 text-sm text-muted-foreground">
+          Connect your personal NTOP identity so Chat-created records are
+          attributed to you, owned by you, and timestamped by NTOP.
+        </p>
+        <NtopConnectionForm
+          prefix={user.ntopApiKeyPrefix}
+          updatedAt={user.ntopApiKeyUpdatedAt?.toISOString() ?? null}
+        />
       </section>
       <section className="rounded-xl border bg-card p-5">
         <h2 className="font-semibold">Session security</h2>

@@ -21,6 +21,9 @@ import { env } from "@/schemas/env";
 import { deliverPasswordReset } from "@/server/services/password-reset-delivery";
 import type { AppResult } from "@/types/result";
 import { failure, success } from "@/types/result";
+import { ntopApiKeySchema } from "@/schemas/ntop-credential";
+import { requireAuthorization } from "@/server/auth/authorization";
+import { encryptedNtopApiKey } from "@/server/services/ntop-credential-service";
 
 export async function registerAction(
   _previous: AppResult<{ registered: true }> | null,
@@ -134,6 +137,39 @@ export async function updateProfileAction(formData: FormData) {
       });
   });
   revalidatePath("/workspace/profile");
+}
+
+export async function updateNtopApiKeyAction(
+  _previous: AppResult<{ updated: true }> | null,
+  formData: FormData,
+) {
+  const context = await requireAuthorization();
+  const parsed = ntopApiKeySchema.safeParse(formData.get("ntopApiKey"));
+  if (!parsed.success)
+    return failure(
+      "VALIDATION_ERROR",
+      parsed.error.issues[0]?.message ?? "Enter a valid NTOP API Key.",
+    );
+  const credential = encryptedNtopApiKey(parsed.data);
+  await db.$transaction([
+    db.user.update({ where: { id: context.userId }, data: credential }),
+    db.auditLog.create({
+      data: {
+        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
+        actorId: context.userId,
+        action: "NTOP_API_KEY_UPDATED",
+        entityType: "User",
+        entityId: context.userId,
+        afterValue: {
+          ntopApiKeyConfigured: true,
+          ntopApiKeyPrefix: credential.ntopApiKeyPrefix,
+        },
+      },
+    }),
+  ]);
+  revalidatePath("/workspace/profile");
+  return success({ updated: true as const });
 }
 
 export async function forgotPasswordAction(

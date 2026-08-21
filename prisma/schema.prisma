@@ -330,6 +330,23 @@ enum ToolTraceStatus {
   FAILED
 }
 
+enum NtopActionType {
+  CREATE_PROSPECT
+  CREATE_LEAD
+  CREATE_OPPORTUNITY
+  UPDATE_OPPORTUNITY
+  CREATE_QUOTATION
+}
+
+enum NtopActionStatus {
+  PENDING
+  EXECUTING
+  COMPLETED
+  FAILED
+  CANCELLED
+  EXPIRED
+}
+
 enum SourceRefreshStatus {
   QUEUED
   PROCESSING
@@ -425,6 +442,12 @@ model User {
   sessionVersion            Int                      @default(1)
   createdById               String?
   deletedAt                 DateTime?
+  ntopApiKeyCiphertext      String?
+  ntopApiKeyIv              String?
+  ntopApiKeyAuthTag         String?
+  ntopApiKeyKeyVersion      String?
+  ntopApiKeyPrefix          String?
+  ntopApiKeyUpdatedAt       DateTime?
   createdBy                 User?                    @relation("UserCreator", fields: [createdById], references: [id], onDelete: SetNull)
   createdUsers              User[]                   @relation("UserCreator")
   accounts                  Account[]
@@ -466,6 +489,7 @@ model User {
   createdKnowledgeSources   KnowledgeSource[]        @relation("KnowledgeSourceCreator")
   createdAiEndpoints        AiEndpointConfig[]       @relation("AiEndpointCreator")
   assignedKnowledgeGaps     KnowledgeGap[]           @relation("KnowledgeGapAssignee")
+  ntopActions               NtopActionProposal[]
   createdAt                 DateTime                 @default(now())
   updatedAt                 DateTime                 @updatedAt
 
@@ -548,6 +572,7 @@ model Organization {
   businessInsightJobs  BusinessInsightJob[]
   aiEndpoints          AiEndpointConfig[]
   knowledgeGaps        KnowledgeGap[]
+  ntopActions          NtopActionProposal[]
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
 }
@@ -1264,6 +1289,7 @@ model Conversation {
   messages           ChatMessage[]
   summaries          ConversationSummary[]
   externalSessions   ExternalSession[]
+  ntopActions        NtopActionProposal[]
   createdAt          DateTime              @default(now())
   updatedAt          DateTime              @updatedAt
 
@@ -1309,11 +1335,42 @@ model ChatMessage {
   feedback        ChatMessageFeedback?
   retrievalTraces MessageRetrievalTrace[]
   toolTraces      ToolExecutionTrace[]
+  ntopActions     NtopActionProposal[]
   createdAt       DateTime                @default(now())
 
   @@index([conversationId, createdAt])
   @@index([role, createdAt])
   @@index([content(ops: raw("gin_trgm_ops"))], type: Gin, map: "ChatMessage_content_trgm_idx")
+}
+
+model NtopActionProposal {
+  id               String           @id @default(cuid())
+  organizationId   String
+  userId           String
+  conversationId   String
+  messageId        String
+  type             NtopActionType
+  status           NtopActionStatus @default(PENDING)
+  title            String
+  summary          String
+  payload          Json
+  result           Json?
+  idempotencyKey   String           @unique
+  errorCode        String?
+  errorMessage     String?
+  expiresAt        DateTime
+  confirmedAt      DateTime?
+  completedAt      DateTime?
+  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation     Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message          ChatMessage      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@index([organizationId, userId, status, createdAt])
+  @@index([conversationId, createdAt])
+  @@index([messageId])
 }
 
 model MessageRetrievalTrace {

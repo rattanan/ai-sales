@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { optionalNtopApiKeySchema } from "@/schemas/ntop-credential";
 
 const optionalScopeId = z.preprocess(
   (value) => (value === "" ? undefined : value),
@@ -30,6 +31,7 @@ export const createUserSchema = z.object({
   ),
   organizationUnitId: optionalScopeId,
   projectIds,
+  ntopApiKey: optionalNtopApiKeySchema,
 });
 
 export const updateUserStatusSchema = z.object({
@@ -69,6 +71,7 @@ export const updateUserSchema = z.object({
   ),
   organizationUnitId: optionalScopeId,
   projectIds,
+  ntopApiKey: optionalNtopApiKeySchema,
 });
 
 export const organizationScopeSchema = z.object({

@@ -22,6 +22,8 @@ export function EditUserForm({
     copilotEnabled: boolean;
     organizationUnitId: string | null;
     projectIds: string[];
+    ntopApiKeyPrefix: string | null;
+    ntopApiKeyUpdatedAt: string | null;
   };
   organizationUnits: { id: string; name: string }[];
   projects: { id: string; name: string }[];
@@ -91,6 +93,23 @@ export function EditUserForm({
         />{" "}
         Enable AI Copilot
       </label>
+      <Field label="Replace NTOP API Key (optional)" htmlFor="ntopApiKey">
+        <Input
+          id="ntopApiKey"
+          name="ntopApiKey"
+          type="password"
+          autoComplete="new-password"
+          aria-describedby="edit-ntop-api-key-help"
+        />
+        <p
+          id="edit-ntop-api-key-help"
+          className="mt-1 text-xs text-muted-foreground"
+        >
+          {user.ntopApiKeyPrefix
+            ? `Current: ntop_${user.ntopApiKeyPrefix}_••••${user.ntopApiKeyUpdatedAt ? ` · updated ${new Date(user.ntopApiKeyUpdatedAt).toLocaleString()}` : ""}. Leave blank to keep it.`
+            : "Not connected. Leave blank so the user can connect from Profile."}
+        </p>
+      </Field>
       <div className="sm:col-span-2">
         {!state?.ok ? (
           <p className="mb-2 text-sm text-destructive">

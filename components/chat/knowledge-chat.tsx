@@ -16,6 +16,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { MessageFeedbackButtons } from "@/components/chat/message-feedback-buttons";
 import { readChatStream } from "@/lib/chat-stream";
+import { NtopActionCard } from "@/components/chat/ntop-action-card";
+import type { NtopSuggestedAction } from "@/schemas/ntop";
 import {
   deleteConversationAction,
   renameConversationAction,
@@ -37,6 +39,7 @@ type ChatMessage = {
   errorCode?: string | null;
   citations: Citation[];
   rating?: number | null;
+  suggestedAction?: NtopSuggestedAction;
 };
 
 type ChatTurnResult = {
@@ -480,6 +483,9 @@ export function KnowledgeChat({
                   </div>
                 ) : null}
               </article>
+              {message.suggestedAction ? (
+                <NtopActionCard action={message.suggestedAction} />
+              ) : null}
               {message.role === "ASSISTANT" &&
               !message.id.startsWith("streaming-") ? (
                 <div className="mt-2 flex flex-wrap items-start gap-1">

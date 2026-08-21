@@ -132,6 +132,9 @@ export default async function UserDetailPage({
               user.memberships[0]?.projects.map(
                 (project) => project.projectId,
               ) ?? [],
+            ntopApiKeyPrefix: user.ntopApiKeyPrefix,
+            ntopApiKeyUpdatedAt:
+              user.ntopApiKeyUpdatedAt?.toISOString() ?? null,
           }}
           organizationUnits={organizationUnits}
           projects={projects}

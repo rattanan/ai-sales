@@ -70,6 +70,22 @@ export function CreateUserForm({
           <option value="DISABLED">Disabled</option>
         </select>
       </Field>
+      <Field label="NTOP API Key (optional)" htmlFor="ntopApiKey">
+        <Input
+          id="ntopApiKey"
+          name="ntopApiKey"
+          type="password"
+          autoComplete="new-password"
+          aria-describedby="admin-ntop-api-key-help"
+        />
+        <p
+          id="admin-ntop-api-key-help"
+          className="mt-1 text-xs text-muted-foreground"
+        >
+          Paste the one-time key shown when this user is created in NTOP. The
+          user can also add it later from Profile.
+        </p>
+      </Field>
       <Field
         label="Department / organization unit"
         htmlFor="organizationUnitId"

@@ -59,6 +59,7 @@ export default async function ChatIndexPage({
               citations: { orderBy: { rank: "asc" } },
               toolTraces: { orderBy: { createdAt: "desc" }, take: 1 },
               feedback: { select: { rating: true } },
+              ntopActions: { orderBy: { createdAt: "desc" }, take: 1 },
             },
             orderBy: { createdAt: "asc" },
           },
@@ -128,6 +129,17 @@ export default async function ChatIndexPage({
             }
           : undefined,
         rating: message.feedback?.rating,
+        suggestedAction: message.ntopActions[0]
+          ? {
+              id: message.ntopActions[0].id,
+              type: message.ntopActions[0].type,
+              status: message.ntopActions[0].status,
+              title: message.ntopActions[0].title,
+              summary: message.ntopActions[0].summary,
+              expiresAt: message.ntopActions[0].expiresAt.toISOString(),
+              errorMessage: message.ntopActions[0].errorMessage,
+            }
+          : undefined,
       }))}
       historyQuery={historyQuery}
     />

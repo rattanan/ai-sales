@@ -1,6 +1,7 @@
 import { requireAuthorization } from "@/server/auth/authorization";
 import { requirePermission } from "@/server/auth/permissions";
 import { db } from "@/server/db";
+import { attachmentContentDisposition } from "@/server/http/content-disposition";
 
 function safeFileName(value: string) {
   return (
@@ -8,7 +9,9 @@ function safeFileName(value: string) {
       .normalize("NFKC")
       .replace(/[^\p{L}\p{N}._-]+/gu, "-")
       .replace(/^-+|-+$/g, "")
-      .slice(0, 80) || "conversation"
+      .match(/./gu)
+      ?.slice(0, 80)
+      .join("") || "conversation"
   );
 }
 
@@ -58,10 +61,14 @@ export async function GET(request: Request) {
       "",
     ]),
   ].join("\n");
+  const fileName = `${safeFileName(conversation.title)}.md`;
   return new Response(markdown, {
     headers: {
       "content-type": "text/markdown; charset=utf-8",
-      "content-disposition": `attachment; filename="${safeFileName(conversation.title)}.md"`,
+      "content-disposition": attachmentContentDisposition(
+        fileName,
+        "conversation.md",
+      ),
       "cache-control": "private, no-store",
     },
   });
