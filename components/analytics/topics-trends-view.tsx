@@ -137,7 +137,7 @@ export function TopicsTrendsView({
                       yAxisId="count"
                       dataKey="messages"
                       name="Messages"
-                      fill="#4f46e5"
+                      fill="#d6a900"
                       radius={[4, 4, 0, 0]}
                     />
                     <Bar

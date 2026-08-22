@@ -335,7 +335,7 @@ export default async function DashboardDetailPage({
       {dashboard.status === "ANALYZING" ? (
         <Card className="border-blue-200 bg-blue-50/40">
           <CardContent className="flex flex-col items-start gap-5 p-7 sm:flex-row sm:items-center">
-            <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-primary text-white">
+            <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground">
               <Bot />
             </span>
             <div>

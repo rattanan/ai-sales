@@ -1,25 +1,25 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f7f8fc;
-  --foreground: #1b1b2f;
+  --background: #fffdf5;
+  --foreground: #24221c;
   --card: #ffffff;
-  --card-foreground: #172033;
-  --primary: #4f46e5;
-  --primary-foreground: #ffffff;
-  --secondary: #eeedff;
-  --secondary-foreground: #3730a3;
-  --muted: #edf1f7;
-  --muted-foreground: #58657a;
-  --border: #dce2eb;
-  --input: #cbd4e1;
-  --ring: #4f46e5;
+  --card-foreground: #24221c;
+  --primary: #ffd400;
+  --primary-foreground: #24221c;
+  --secondary: #fff5b8;
+  --secondary-foreground: #5c4900;
+  --muted: #f6f3e9;
+  --muted-foreground: #696453;
+  --border: #e7dfc2;
+  --input: #d8cfad;
+  --ring: #b98b00;
   --destructive: #b42318;
   --success: #067647;
-  --warning: #b54708;
+  --warning: #9a6700;
   --radius: 0.75rem;
   --info: #2563eb;
-  --chart-1: #2563eb;
+  --chart-1: #d6a900;
   --chart-2: #0891b2;
   --chart-3: #059669;
   --chart-4: #d97706;
@@ -35,8 +35,8 @@
 }
 
 .bi-dashboard {
-  --dashboard-accent: #2563eb;
-  --dashboard-accent-soft: #eff6ff;
+  --dashboard-accent: #d6a900;
+  --dashboard-accent-soft: #fff9d6;
   position: relative;
 }
 
@@ -50,7 +50,7 @@
   border-radius: 999px;
   background: radial-gradient(
     circle at center,
-    rgb(96 165 250 / 0.16),
+    rgb(255 212 0 / 0.18),
     transparent 68%
   );
   content: "";
@@ -88,7 +88,7 @@
 .dashboard-card-kpi {
   overflow: hidden;
   border: 0;
-  background: linear-gradient(135deg, #ffffff 0%, #f7fbff 66%, #eef5ff 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #fffdf3 66%, #fff7c7 100%);
 }
 
 .dashboard-card-kpi::before {
@@ -142,7 +142,7 @@
   --muted-foreground: #a9b7ca;
   --border: #263650;
   --surface-raised: #111b2e;
-  --dashboard-accent-soft: #12284a;
+  --dashboard-accent-soft: #3a310e;
 }
 
 .dashboard-dark .dashboard-card-kpi {
@@ -189,6 +189,20 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-info: var(--info);
+  /* Remap legacy accent utilities so every screen follows the NT palette. */
+  --color-indigo-50: #fffbea;
+  --color-indigo-100: #fff4b8;
+  --color-indigo-200: #ffe66b;
+  --color-indigo-300: #ffd82e;
+  --color-indigo-500: #c99a00;
+  --color-indigo-600: #a87800;
+  --color-indigo-700: #785600;
+  --color-indigo-800: #574000;
+  --color-indigo-900: #3b2d00;
+  --color-indigo-950: #261e00;
+  --color-violet-50: #fffbea;
+  --color-violet-600: #a87800;
+  --color-violet-700: #785600;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -222,8 +236,8 @@ summary {
 }
 
 ::selection {
-  background: #ddd6fe;
-  color: #1b1b2f;
+  background: #ffe66b;
+  color: #24221c;
 }
 
 @media (prefers-reduced-motion: reduce) {

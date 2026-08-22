@@ -128,7 +128,7 @@ export function KnowledgeExplorer({ folders }: { folders: ExplorerFolder[] }) {
       <div className="flex flex-wrap items-center gap-2 border-b bg-slate-50/80 p-3">
         <Link
           href="/workspace/admin/knowledge/new"
-          className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-primary px-3 text-sm font-semibold text-white"
+          className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground"
         >
           <Folder size={17} /> New folder
         </Link>

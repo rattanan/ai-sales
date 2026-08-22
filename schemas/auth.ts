@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const password = z
+export const passwordSchema = z
   .string()
   .min(12, "Use at least 12 characters")
   .max(128)
@@ -11,7 +11,7 @@ const password = z
 export const registerSchema = z.object({
   name: z.string().trim().min(2).max(80),
   email: z.string().trim().toLowerCase().email(),
-  password,
+  password: passwordSchema,
 });
 
 export const loginSchema = z.object({
@@ -31,7 +31,7 @@ export const forgotPasswordSchema = z.object({
 export const resetPasswordSchema = z
   .object({
     token: z.string().min(32).max(256),
-    password,
+    password: passwordSchema,
     confirmPassword: z.string(),
   })
   .refine((value) => value.password === value.confirmPassword, {
@@ -42,7 +42,7 @@ export const resetPasswordSchema = z
 export const changePasswordSchema = z
   .object({
     currentPassword: z.string().min(1),
-    password,
+    password: passwordSchema,
     confirmPassword: z.string(),
   })
   .refine((value) => value.password === value.confirmPassword, {

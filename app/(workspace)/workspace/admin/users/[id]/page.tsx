@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import {
   EditUserForm,
-  ResetUserPasswordForm,
+  SetUserPasswordForm,
 } from "@/components/admin/edit-user-form";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
@@ -33,6 +33,7 @@ export default async function UserDetailPage({
     activity,
     logins,
     canDelete,
+    canSetPassword,
     organizationUnits,
     projects,
   ] = await Promise.all([
@@ -83,6 +84,7 @@ export default async function UserDetailPage({
       take: 10,
     }),
     hasPermission(context, "user.delete"),
+    hasPermission(context, "user.reset_password"),
     db.organizationUnit.findMany({
       where: { organizationId: context.organizationId, active: true },
       select: { id: true, name: true },
@@ -176,10 +178,16 @@ export default async function UserDetailPage({
             ))}
           </div>
         </div>
-        <div className="rounded-xl border bg-card p-5">
-          <h2 className="mb-4 font-semibold">Administrator password reset</h2>
-          <ResetUserPasswordForm userId={user.id} />
-        </div>
+        {canSetPassword ? (
+          <div className="rounded-xl border bg-card p-5">
+            <h2 className="mb-1 font-semibold">Set password</h2>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Sets a new password, unlocks the account, and signs out existing
+              sessions.
+            </p>
+            <SetUserPasswordForm userId={user.id} />
+          </div>
+        ) : null}
       </section>
       <section className="grid gap-5 lg:grid-cols-2">
         <div className="rounded-xl border bg-card p-5">

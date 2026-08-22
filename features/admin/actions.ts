@@ -6,7 +6,7 @@ import { requireAuthorization } from "@/server/auth/authorization";
 import { requirePermission } from "@/server/auth/permissions";
 import { db } from "@/server/db";
 import {
-  adminResetPasswordSchema,
+  adminSetPasswordSchema,
   assignRoleSchema,
   createUserSchema,
   updateUserStatusSchema,
@@ -176,20 +176,17 @@ export async function updateUserStatusAction(formData: FormData) {
   revalidatePath("/workspace/admin/users");
 }
 
-export async function resetUserPasswordAction(
+export async function setUserPasswordAction(
   _state: unknown,
   formData: FormData,
 ) {
   const context = await requireAuthorization();
   await requirePermission(context, "user.reset_password");
-  const parsed = adminResetPasswordSchema.safeParse(
-    Object.fromEntries(formData),
-  );
+  const parsed = adminSetPasswordSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success)
-    return failure(
-      "VALIDATION_ERROR",
-      "Use a temporary password of at least 12 characters.",
-    );
+    return failure("VALIDATION_ERROR", "Check the password details.", {
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    });
   const user = await db.user.findFirst({
     where: {
       id: parsed.data.userId,
@@ -201,8 +198,8 @@ export async function resetUserPasswordAction(
     db.user.update({
       where: { id: user.id },
       data: {
-        passwordHash: await passwordHash(parsed.data.temporaryPassword),
-        mustChangePassword: true,
+        passwordHash: await passwordHash(parsed.data.password),
+        mustChangePassword: parsed.data.forcePasswordChange,
         status: "ACTIVE",
         sessionVersion: { increment: 1 },
         failedLoginCount: 0,
@@ -225,7 +222,8 @@ export async function resetUserPasswordAction(
       },
     }),
   ]);
-  return success({ reset: true });
+  revalidatePath(`/workspace/admin/users/${user.id}`);
+  return success({ passwordSet: true });
 }
 
 export async function assignUserRoleAction(formData: FormData) {

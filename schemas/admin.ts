@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { passwordSchema } from "@/schemas/auth";
 import { optionalNtopApiKeySchema } from "@/schemas/ntop-credential";
 
 const optionalScopeId = z.preprocess(
@@ -44,10 +45,20 @@ export const deleteUserSchema = z.object({
   confirmationEmail: z.string().trim().toLowerCase().email(),
 });
 
-export const adminResetPasswordSchema = z.object({
-  userId: z.string().min(1),
-  temporaryPassword: z.string().min(12).max(128),
-});
+export const adminSetPasswordSchema = z
+  .object({
+    userId: z.string().min(1),
+    password: passwordSchema,
+    confirmPassword: z.string(),
+    forcePasswordChange: z.preprocess(
+      (value) => value === "on" || value === true,
+      z.boolean(),
+    ),
+  })
+  .refine((value) => value.password === value.confirmPassword, {
+    path: ["confirmPassword"],
+    message: "Passwords do not match.",
+  });
 
 export const assignRoleSchema = z.object({
   userId: z.string().min(1),

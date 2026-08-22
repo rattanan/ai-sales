@@ -217,6 +217,8 @@ const thaiTranslations: Record<string, string> = {
   "Department / organization unit": "แผนก / หน่วยงาน",
   Projects: "โครงการ",
   "New temporary password": "รหัสผ่านชั่วคราวใหม่",
+  "New password": "รหัสผ่านใหม่",
+  "Confirm password": "ยืนยันรหัสผ่าน",
   "Display name": "ชื่อที่แสดง",
   "Chart / widget type": "ประเภทแผนภูมิ / วิดเจ็ต",
   "Target value": "ค่าเป้าหมาย",

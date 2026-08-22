@@ -425,7 +425,7 @@ export function WorkspaceNav({
               className={cn(
                 "group flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium leading-5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 motion-reduce:transition-none",
                 active
-                  ? "bg-indigo-50 text-indigo-950 shadow-[inset_3px_0_0_#4f46e5]"
+                  ? "bg-indigo-50 text-indigo-950 shadow-[inset_3px_0_0_#ffd400]"
                   : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
               )}
             >

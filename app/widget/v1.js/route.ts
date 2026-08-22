@@ -13,7 +13,7 @@ const loader = String.raw`(()=>{
     host.dataset.insightkmWidget=options.botId;
     document.body.appendChild(host);
     const root=host.attachShadow({mode:'open'});
-    root.innerHTML='<style>:host{all:initial;--ikm-accent:#4f46e5;--ikm-launcher:56px;--ikm-panel-width:390px;--ikm-panel-height:650px}.toggle{position:fixed;bottom:20px;z-index:2147483000;display:grid;place-items:center;width:var(--ikm-launcher);height:var(--ikm-launcher);overflow:hidden;border:0;border-radius:50%;background:var(--ikm-accent);color:#fff;box-shadow:0 12px 30px #0f172a38;font:700 22px system-ui;cursor:pointer}.toggle img{width:100%;height:100%;object-fit:cover}.panel{position:fixed;bottom:calc(var(--ikm-launcher) + 32px);z-index:2147482999;width:min(var(--ikm-panel-width),calc(100vw - 24px));height:min(var(--ikm-panel-height),calc(100dvh - 112px));border:0;border-radius:18px;background:#fff;box-shadow:0 18px 60px #0f172a45}.panel[hidden]{display:none}@media(max-width:520px){.panel{inset:0;width:100vw;height:100dvh;border-radius:0}.toggle{bottom:14px}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}</style><button class="toggle" aria-label="Open AI-Sales chat" aria-expanded="false">✦</button><iframe class="panel" title="AI-Sales secure chat" hidden></iframe>';
+    root.innerHTML='<style>:host{all:initial;--ikm-accent:#ffd400;--ikm-accent-foreground:#24221c;--ikm-launcher:56px;--ikm-panel-width:390px;--ikm-panel-height:650px}.toggle{position:fixed;bottom:20px;z-index:2147483000;display:grid;place-items:center;width:var(--ikm-launcher);height:var(--ikm-launcher);overflow:hidden;border:0;border-radius:50%;background:var(--ikm-accent);color:var(--ikm-accent-foreground);box-shadow:0 12px 30px #0f172a38;font:700 22px system-ui;cursor:pointer}.toggle img{width:100%;height:100%;object-fit:cover}.panel{position:fixed;bottom:calc(var(--ikm-launcher) + 32px);z-index:2147482999;width:min(var(--ikm-panel-width),calc(100vw - 24px));height:min(var(--ikm-panel-height),calc(100dvh - 112px));border:0;border-radius:18px;background:#fff;box-shadow:0 18px 60px #0f172a45}.panel[hidden]{display:none}@media(max-width:520px){.panel{inset:0;width:100vw;height:100dvh;border-radius:0}.toggle{bottom:14px}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}</style><button class="toggle" aria-label="Open AI-Sales chat" aria-expanded="false">✦</button><iframe class="panel" title="AI-Sales secure chat" hidden></iframe>';
     const button=root.querySelector('.toggle'),frame=root.querySelector('.panel');
     function place(position){
       const left=position==='LEFT'||position==='bottom-left';
@@ -21,11 +21,14 @@ const loader = String.raw`(()=>{
       frame.style.left=left?'20px':'auto';frame.style.right=left?'auto':'20px';
     }
     function apply(config){
-      const optionColors={slate:'#0f172a',emerald:'#047857',indigo:'#4f46e5'};
-      const accent=optionColors[options.theme]||(/^#[0-9a-f]{6}$/i.test(config.primaryColor||'')?config.primaryColor:'#4f46e5');
+      const optionColors={nt:'#ffd400',slate:'#0f172a',emerald:'#047857',indigo:'#4f46e5'};
+      const accent=optionColors[options.theme]||(/^#[0-9a-f]{6}$/i.test(config.primaryColor||'')?config.primaryColor:'#ffd400');
+      const channels=accent.slice(1).match(/.{2}/g).map(value=>parseInt(value,16));
+      const foreground=(channels[0]*299+channels[1]*587+channels[2]*114)/1000>=150?'#24221c':'#ffffff';
       const launcher=Math.max(40,Math.min(80,Number(config.launcherSize)||56));
       const dimensions=sizes[config.widgetSize]||sizes.STANDARD;
       host.style.setProperty('--ikm-accent',accent);
+      host.style.setProperty('--ikm-accent-foreground',foreground);
       host.style.setProperty('--ikm-launcher',launcher+'px');
       host.style.setProperty('--ikm-panel-width',dimensions[0]+'px');
       host.style.setProperty('--ikm-panel-height',dimensions[1]+'px');

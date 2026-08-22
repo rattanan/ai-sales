@@ -108,7 +108,7 @@ export default async function WorkspacePage() {
 
   return (
     <div className="space-y-7">
-      <section className="relative overflow-hidden rounded-[1.5rem] border bg-[linear-gradient(125deg,#ffffff_0%,#f5f3ff_52%,#eef8ff_100%)] px-6 py-7 shadow-[0_18px_50px_rgba(31,31,78,0.06)] sm:px-8 sm:py-9">
+      <section className="relative overflow-hidden rounded-[1.5rem] border bg-[linear-gradient(125deg,#ffffff_0%,#fffbea_52%,#fff5bd_100%)] px-6 py-7 shadow-[0_18px_50px_rgba(107,82,0,0.07)] sm:px-8 sm:py-9">
         <div className="pointer-events-none absolute -right-16 -top-20 size-72 rounded-full bg-indigo-300/15 blur-3xl" />
         <div className="relative flex flex-col gap-7 xl:flex-row xl:items-center xl:justify-between">
           <div className="max-w-3xl">

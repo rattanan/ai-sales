@@ -14,7 +14,7 @@ export default function AuthLayout({
       id="main-content"
       className="relative grid min-h-dvh place-items-center overflow-hidden bg-background px-4 py-10"
     >
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_50%_-20%,rgba(99,102,241,0.18),transparent_66%)]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_50%_-20%,rgba(255,212,0,0.22),transparent_66%)]" />
       <div className="w-full max-w-md">
         <Link href="/" className="mb-8 flex items-center justify-center gap-3">
           <InsightKmMark />

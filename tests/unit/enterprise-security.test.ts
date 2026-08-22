@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import * as XLSX from "xlsx";
 import { loginSchema, resetPasswordSchema } from "@/schemas/auth";
 import {
+  adminSetPasswordSchema,
   createUserSchema,
   deleteUserSchema,
   llmProviderSchema,
@@ -73,6 +74,33 @@ describe("enterprise security policy", () => {
       deleteUserSchema.safeParse({
         userId: "user-id",
         confirmationEmail: "not-an-email",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("validates matching strong passwords set by an administrator", () => {
+    expect(
+      adminSetPasswordSchema.safeParse({
+        userId: "user-id",
+        password: "SecurePassword1",
+        confirmPassword: "SecurePassword1",
+        forcePasswordChange: false,
+      }).success,
+    ).toBe(true);
+    expect(
+      adminSetPasswordSchema.safeParse({
+        userId: "user-id",
+        password: "SecurePassword1",
+        confirmPassword: "DifferentPassword1",
+        forcePasswordChange: false,
+      }).success,
+    ).toBe(false);
+    expect(
+      adminSetPasswordSchema.safeParse({
+        userId: "user-id",
+        password: "all-lowercase-password",
+        confirmPassword: "all-lowercase-password",
+        forcePasswordChange: false,
       }).success,
     ).toBe(false);
   });

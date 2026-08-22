@@ -9,8 +9,9 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary:
-          "bg-primary text-primary-foreground shadow-sm hover:bg-blue-800",
-        secondary: "bg-secondary text-secondary-foreground hover:bg-blue-100",
+          "bg-primary text-primary-foreground shadow-sm hover:bg-[#e6bf00]",
+        secondary:
+          "bg-secondary text-secondary-foreground hover:bg-[#ffed8a]",
         outline: "border bg-card text-foreground hover:bg-muted",
         ghost: "text-muted-foreground hover:bg-muted hover:text-foreground",
         destructive: "bg-destructive text-white hover:bg-red-800",

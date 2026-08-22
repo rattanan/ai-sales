@@ -220,7 +220,7 @@ export function DashboardCopilot({
           className={`fixed bottom-4 right-4 z-50 flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden rounded-2xl border shadow-2xl ${panelClass} ${wide ? "w-[min(42rem,calc(100vw-2rem))]" : "w-[min(26rem,calc(100vw-2rem))]"}`}
         >
           <header className="flex min-h-14 items-center gap-2 border-b border-inherit px-3">
-            <span className="grid size-8 place-items-center rounded-lg bg-primary text-white">
+            <span className="grid size-8 place-items-center rounded-lg bg-primary text-primary-foreground">
               <Bot size={17} />
             </span>
             <div className="min-w-0 flex-1">
@@ -386,7 +386,7 @@ function MessageBubble({
   const [showSql, setShowSql] = useState(false);
   if (message.role === "user")
     return (
-      <div className="ml-8 rounded-xl bg-primary px-3 py-2 text-sm text-white">
+      <div className="ml-8 rounded-xl bg-primary px-3 py-2 text-sm text-primary-foreground">
         {message.content}
       </div>
     );

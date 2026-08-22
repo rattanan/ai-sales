@@ -47,10 +47,10 @@ type AppearanceState =
 
 const presets = [
   {
-    name: "Indigo",
-    primary: "#4f46e5",
-    header: "#312e81",
-    bubble: "#eef2ff",
+    name: "NT Yellow",
+    primary: "#ffd400",
+    header: "#24221c",
+    bubble: "#fff5b8",
   },
   {
     name: "Ocean",

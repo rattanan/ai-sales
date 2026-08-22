@@ -35,7 +35,7 @@ export default async function HomePage() {
         </Button>
       </nav>
 
-      <section className="relative overflow-hidden border-y bg-[linear-gradient(135deg,#fbfbff_0%,#f3f2ff_50%,#f4fbff_100%)]">
+      <section className="relative overflow-hidden border-y bg-[linear-gradient(135deg,#ffffff_0%,#fffbea_52%,#fff4b8_100%)]">
         <div className="pointer-events-none absolute left-1/2 top-0 size-[38rem] -translate-x-1/2 -translate-y-2/3 rounded-full bg-indigo-300/25 blur-3xl" />
         <div className="relative mx-auto grid max-w-7xl items-center gap-14 px-5 py-20 sm:px-8 lg:grid-cols-[1.02fr_.98fr] lg:py-28">
           <div>
@@ -64,7 +64,7 @@ export default async function HomePage() {
           </div>
 
           <div
-            className="relative rounded-[1.5rem] border bg-white p-4 shadow-[0_28px_80px_rgba(36,34,80,0.15)] sm:p-5"
+            className="relative rounded-[1.5rem] border bg-white p-4 shadow-[0_28px_80px_rgba(107,82,0,0.14)] sm:p-5"
             aria-label="AI-Sales product preview"
           >
             <div className="flex items-center gap-3 border-b pb-4">
@@ -84,7 +84,7 @@ export default async function HomePage() {
               </span>
             </div>
             <div className="space-y-4 py-5">
-              <div className="ml-auto max-w-[84%] rounded-2xl rounded-br-md bg-primary px-4 py-3 text-sm leading-6 text-white">
+              <div className="ml-auto max-w-[84%] rounded-2xl rounded-br-md bg-primary px-4 py-3 text-sm leading-6 text-primary-foreground">
                 What is the approval process for external training expenses?
               </div>
               <div className="max-w-[92%] rounded-2xl rounded-bl-md border bg-slate-50 px-4 py-3.5">
@@ -159,7 +159,7 @@ function Feature({
   text: string;
 }) {
   return (
-    <div className="rounded-2xl border bg-card p-6 transition-all hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-[0_16px_38px_rgba(31,31,78,0.08)]">
+    <div className="rounded-2xl border bg-card p-6 transition-all hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-[0_16px_38px_rgba(107,82,0,0.09)]">
       <div className="mb-5 grid size-11 place-items-center rounded-xl bg-secondary text-primary">
         {icon}
       </div>

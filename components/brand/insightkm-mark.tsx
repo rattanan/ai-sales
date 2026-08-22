@@ -5,7 +5,7 @@ export function InsightKmMark({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        "relative grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-primary text-primary-foreground shadow-[0_8px_22px_rgba(79,70,229,0.24)]",
+        "relative grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-primary text-primary-foreground shadow-[0_8px_22px_rgba(201,154,0,0.24)]",
         className,
       )}
       aria-hidden="true"

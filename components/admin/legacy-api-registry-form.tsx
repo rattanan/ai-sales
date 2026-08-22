@@ -350,7 +350,8 @@ export function LegacyApiRegistryForm({
                 <span
                   className={cn(
                     "grid size-7 shrink-0 place-items-center rounded-full border text-xs font-bold",
-                    index === step && "border-primary bg-primary text-white",
+                    index === step &&
+                      "border-primary bg-primary text-primary-foreground",
                     index < step &&
                       "border-emerald-600 bg-emerald-600 text-white",
                   )}

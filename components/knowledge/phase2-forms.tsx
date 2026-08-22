@@ -379,9 +379,9 @@ export function BotConfigurationForm({
       </Field>
       <div className="grid grid-cols-3 gap-3 lg:col-span-2">
         {[
-          ["primaryColor", "Primary", bot?.primaryColor ?? "#4f46e5"],
+          ["primaryColor", "Primary", bot?.primaryColor ?? "#ffd400"],
           ["headerColor", "Header", bot?.headerColor ?? "#111827"],
-          ["chatBubbleColor", "Bubble", bot?.chatBubbleColor ?? "#eef2ff"],
+          ["chatBubbleColor", "Bubble", bot?.chatBubbleColor ?? "#fff5b8"],
         ].map(([name, label, value]) => (
           <Field
             key={name}

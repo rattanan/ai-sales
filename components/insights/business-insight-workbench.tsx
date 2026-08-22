@@ -214,7 +214,7 @@ export function BusinessInsightDashboard({
                   yAxisId="count"
                   type="monotone"
                   dataKey="messages"
-                  stroke="#4f46e5"
+                  stroke="#d6a900"
                   strokeWidth={2}
                   dot
                 />

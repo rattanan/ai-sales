@@ -246,7 +246,7 @@ export function SetupWizard({
               >
                 <div className="flex items-start justify-between">
                   <span
-                    className={`grid size-11 place-items-center rounded-lg ${selectedType === option.type ? "bg-primary text-white" : "bg-slate-100 text-slate-700"}`}
+                    className={`grid size-11 place-items-center rounded-lg ${selectedType === option.type ? "bg-primary text-primary-foreground" : "bg-slate-100 text-slate-700"}`}
                   >
                     {option.icon}
                   </span>

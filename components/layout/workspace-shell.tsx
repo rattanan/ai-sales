@@ -71,7 +71,7 @@ function WorkspaceShellContent({
           </Link>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-4 [scrollbar-gutter:stable]">
-          <div className="mb-5 rounded-xl border bg-[linear-gradient(135deg,#fafaff,#f4f3ff)] p-3.5">
+          <div className="mb-5 rounded-xl border bg-[linear-gradient(135deg,#ffffff,#fff8cf)] p-3.5">
             <p className="truncate text-xs font-medium text-muted-foreground">
               {workspace.organizationName}
             </p>

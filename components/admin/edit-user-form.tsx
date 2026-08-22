@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import {
-  resetUserPasswordAction,
+  setUserPasswordAction,
   updateUserAction,
 } from "@/features/admin/actions";
 import { Button } from "@/components/ui/button";
@@ -124,38 +124,66 @@ export function EditUserForm({
   );
 }
 
-export function ResetUserPasswordForm({ userId }: { userId: string }) {
-  const [state, action, pending] = useActionState(
-    resetUserPasswordAction,
-    null,
-  );
+export function SetUserPasswordForm({ userId }: { userId: string }) {
+  const [state, action, pending] = useActionState(setUserPasswordAction, null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const errors = state && !state.ok ? state.error.fieldErrors : undefined;
+
+  useEffect(() => {
+    if (state?.ok) formRef.current?.reset();
+  }, [state]);
+
   return (
-    <form
-      action={action}
-      className="flex flex-col gap-3 sm:flex-row sm:items-end"
-    >
+    <form ref={formRef} action={action} className="grid gap-4 sm:grid-cols-2">
       <input type="hidden" name="userId" value={userId} />
-      <Field label="New temporary password" htmlFor="temporaryPassword">
+      <Field
+        label="New password"
+        htmlFor="adminPassword"
+        hint="At least 12 characters with upper/lowercase letters and a number."
+        error={errors?.password?.[0]}
+        required
+      >
         <Input
-          id="temporaryPassword"
-          name="temporaryPassword"
+          id="adminPassword"
+          name="password"
           type="password"
           autoComplete="new-password"
           required
         />
       </Field>
-      <Button disabled={pending}>
-        {pending ? "Resetting…" : "Reset password"}
-      </Button>
-      {state ? (
-        <p
-          className={`text-sm ${state.ok ? "text-emerald-700" : "text-destructive"}`}
-        >
-          {state.ok
-            ? "Password reset; all sessions invalidated."
-            : state.error.message}
-        </p>
-      ) : null}
+      <Field
+        label="Confirm password"
+        htmlFor="adminConfirmPassword"
+        error={errors?.confirmPassword?.[0]}
+        required
+      >
+        <Input
+          id="adminConfirmPassword"
+          name="confirmPassword"
+          type="password"
+          autoComplete="new-password"
+          required
+        />
+      </Field>
+      <label className="flex min-h-11 items-center gap-2 text-sm sm:col-span-2">
+        <input name="forcePasswordChange" type="checkbox" />
+        Require the user to change this password at next sign-in
+      </label>
+      <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
+        <Button disabled={pending}>
+          {pending ? "Setting…" : "Set password"}
+        </Button>
+        {state ? (
+          <p
+            role={state.ok ? "status" : "alert"}
+            className={`text-sm ${state.ok ? "text-emerald-700" : "text-destructive"}`}
+          >
+            {state.ok
+              ? "Password set; all existing sessions were signed out."
+              : state.error.message}
+          </p>
+        ) : null}
+      </div>
     </form>
   );
 }
