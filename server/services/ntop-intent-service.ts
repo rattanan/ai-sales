@@ -5,7 +5,7 @@ const SALES_SIGNAL =
   /\b(?:prospect|lead|opportunit(?:y|ies)|customer|quotation|quote|pipeline|budget|proposal)\b|ลูกค้า|ผู้มุ่งหวัง|โอกาสขาย|ใบเสนอราคา|งบประมาณ|งบ\s*\d|สนใจ|จัดซื้อ|เคยคุย|ปิดการขาย|ยอดขาย/iu;
 
 const COMPANY_PREFIX =
-  /(?:บริษัท|บ\.|ลูกค้า(?:บริษัท)?|company|customer)\s*[:：-]?\s*([\p{L}\p{N}][\p{L}\p{N} .&_-]{0,80}?)(?=\s+(?:สนใจ|ต้องการ|อยาก|มี|งบ|คุย|ติดต่อ|ขอ|ใช้|จะ)|[,，]|$)/iu;
+  /(?:บริษัท|บ\.|ลูกค้า(?:บริษัท)?|company|customer)\s*[:：-]?\s*([\p{L}\p{M}\p{N}][\p{L}\p{M}\p{N} .&_-]{0,80}?)(?=\s+(?:สนใจ|ต้องการ|อยาก|มี|งบ|คุย|ติดต่อ|ขอ|ใช้|จะ|ให้|ช่วย|กรุณา)|[,，]|$)/iu;
 
 const ACRONYM_COMPANY_EXCLUSIONS = new Set([
   "DR",

@@ -31,6 +31,7 @@ import {
 import { fetchAiWithRetry } from "@/packages/ai/fetch-with-retry";
 import { readChatCompletionResponse } from "@/server/ai/chat-completion-stream";
 import {
+  hasExplicitNtopLookup,
   orchestrateNtopChat,
   type NtopChatOutcome,
 } from "@/server/services/ntop-chat-orchestrator";
@@ -681,8 +682,10 @@ export async function sendKnowledgeChatMessage(
   const privacyPolicyPromise = getEffectiveAiPrivacyPolicy(
     context.organizationId,
   );
+  const explicitNtopLookup = hasExplicitNtopLookup(input.message);
+  const useWebSearch = Boolean(input.webSearch && !explicitNtopLookup);
   const ntopContextPromise =
-    input.webSearch ||
+    useWebSearch ||
     attachmentSummaries.length > 0 ||
     !hasNtopSalesSignal(input.message)
       ? Promise.resolve([] as string[])
@@ -701,7 +704,7 @@ export async function sendKnowledgeChatMessage(
   const webSearchStartedAt = performance.now();
   let webSearchEvidence: WebSearchEvidence[] = [];
   let webSearchFailed = false;
-  if (input.webSearch) {
+  if (useWebSearch) {
     try {
       const privacyPolicy = await privacyPolicyPromise;
       webSearchEvidence = await searchWeb(
@@ -715,7 +718,7 @@ export async function sendKnowledgeChatMessage(
     performance.now() - webSearchStartedAt,
   );
   const ntopOutcome: NtopChatOutcome =
-    input.webSearch || attachmentSummaries.length
+    useWebSearch || (attachmentSummaries.length > 0 && !explicitNtopLookup)
       ? { evidence: [], toolUsed: false }
       : await orchestrateNtopChat(context.userId, input.message, {
           contextMessages: await ntopContextPromise,
@@ -784,7 +787,7 @@ export async function sendKnowledgeChatMessage(
     ? (scope as "CONVERSATION_HISTORY" | "BUSINESS_INSIGHT")
     : null;
   const [retrievedEvidence, memory, privacyPolicy] = await Promise.all([
-    input.webSearch || databaseAnswer || legacyApiAnswer
+    useWebSearch || databaseAnswer || legacyApiAnswer
       ? Promise.resolve([] as GroundingEvidence[])
       : ntopOutcome.action || ntopOutcome.message
         ? Promise.resolve([] as GroundingEvidence[])
@@ -835,14 +838,14 @@ export async function sendKnowledgeChatMessage(
     emittedToken = true;
     await input.onToken(token);
   };
-  if (input.webSearch && webSearchFailed) {
+  if (useWebSearch && webSearchFailed) {
     answer = {
       content: isThai(input.message)
         ? "ไม่สามารถค้นหาเว็บได้ในขณะนี้ กรุณาตรวจสอบการตั้งค่า Web Search หรือลองใหม่อีกครั้ง"
         : "Web search is currently unavailable. Check the Web Search configuration or try again.",
     };
     errorCode = "WEB_SEARCH_ERROR";
-  } else if (input.webSearch && !webSearchEvidence.length) {
+  } else if (useWebSearch && !webSearchEvidence.length) {
     answer = {
       content: isThai(input.message)
         ? "ไม่พบผลลัพธ์ที่เกี่ยวข้องจากการค้นหาเว็บ กรุณาลองปรับคำค้นหา"
@@ -990,7 +993,7 @@ export async function sendKnowledgeChatMessage(
               })),
             }
           : undefined,
-        toolTraces: input.webSearch
+        toolTraces: useWebSearch
           ? {
               create: {
                 toolType: "WEB_SEARCH",
@@ -1120,7 +1123,7 @@ export async function sendKnowledgeChatMessage(
         quote: citation.quote,
         metadata: citation.metadata,
       })),
-      toolActivity: input.webSearch
+      toolActivity: useWebSearch
         ? {
             type: "WEB_SEARCH",
             status: webSearchFailed ? "FAILED" : "COMPLETED",

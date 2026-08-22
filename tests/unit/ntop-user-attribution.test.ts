@@ -33,6 +33,16 @@ describe("NTOP per-user attribution", () => {
     );
   });
 
+  it("gives an explicit NTOP lookup precedence over other chat sources", () => {
+    expect(chat).toContain("hasExplicitNtopLookup(input.message)");
+    expect(chat).toContain(
+      "const useWebSearch = Boolean(input.webSearch && !explicitNtopLookup)",
+    );
+    expect(chat).toContain(
+      "attachmentSummaries.length > 0 && !explicitNtopLookup",
+    );
+  });
+
   it("does not suggest an NTOP write without a personal user key", () => {
     expect(client).toContain("credentialSource: personalApiKey");
     expect(client).toContain('("USER" as const)');

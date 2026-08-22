@@ -78,23 +78,96 @@ function money(value: string | null) {
 }
 
 type LookupKind =
-  | "CUSTOMER"
-  | "PROSPECT"
-  | "LEAD"
-  | "OPPORTUNITY"
-  | "QUOTATION"
-  | "PRODUCT";
+  "CUSTOMER" | "PROSPECT" | "LEAD" | "OPPORTUNITY" | "QUOTATION" | "PRODUCT";
+
+type LookupPlan = {
+  kind: LookupKind | null;
+  queries: string[];
+  label: string;
+  filter: boolean;
+};
+
+const LOOKUP_REQUEST =
+  /(?:ค้น|หา|ดู|ดึง|แสดง|ลิสต์|รายการ|อะไรบ้าง|สถานะ|ล่าสุด|find|search|show|list|get)/iu;
+
+export function hasExplicitNtopLookup(message: string) {
+  return (
+    LOOKUP_REQUEST.test(message) &&
+    /(?:(?:จาก|ใน)\s*ntop\b|\bntop\b)/iu.test(message)
+  );
+}
 
 function requestedLookupKind(message: string): LookupKind | null {
   if (/\bprospect\b|ผู้มุ่งหวัง/iu.test(message)) return "PROSPECT";
   if (/\blead\b/iu.test(message)) return "LEAD";
-  if (/\bopportunit(?:y|ies)\b|โอกาสขาย/iu.test(message))
-    return "OPPORTUNITY";
-  if (/\bquotation\b|\bquote\b|ใบเสนอราคา/iu.test(message))
-    return "QUOTATION";
+  if (/\bopportunit(?:y|ies)\b|โอกาสขาย/iu.test(message)) return "OPPORTUNITY";
+  if (/\bquotation\b|\bquote\b|ใบเสนอราคา/iu.test(message)) return "QUOTATION";
   if (/\bproduct\b|สินค้า|ผลิตภัณฑ์/iu.test(message)) return "PRODUCT";
   if (/\bcustomer\b|ลูกค้า/iu.test(message)) return "CUSTOMER";
   return null;
+}
+
+function lookupCandidates(value: string) {
+  const candidates = value
+    .split(/\s+(?:หรือ|or)\s+/iu)
+    .map((item) => item.trim().replace(/^["“”']+|["“”'.,，]+$/gu, ""))
+    .filter(Boolean)
+    .flatMap((item) => {
+      const compact = item.includes(".") ? item.replace(/[.\s]/gu, "") : item;
+      return compact && compact !== item ? [item, compact] : [item];
+    });
+  return [...new Set(candidates)];
+}
+
+function explicitNtopQuery(message: string) {
+  return message
+    .replace(/(?:จาก|ใน)\s*ntop\b/giu, " ")
+    .replace(/\bntop\b/giu, " ")
+    .replace(
+      /^(?:ช่วย\s*)?(?:ค้นหา|ค้น|หา|ดู|ดึง|แสดง|ลิสต์)\s*(?:ข้อมูล(?:ของ)?\s*)?/iu,
+      "",
+    )
+    .replace(
+      /\b(?:prospects?|leads?|customers?|opportunit(?:y|ies)|quotations?|quotes?|products?)\b|ลูกค้า|ผู้มุ่งหวัง|โอกาสขาย|ใบเสนอราคา|สินค้า|ผลิตภัณฑ์/giu,
+      " ",
+    )
+    .replace(/\s*(?:ให้หน่อย|ให้ที|หน่อย|ที|ครับ|ค่ะ|คะ)\s*$/iu, "")
+    .replace(/\s+/gu, " ")
+    .trim();
+}
+
+function lookupPlan(
+  message: string,
+  company: string | null,
+): LookupPlan | null {
+  const kind = requestedLookupKind(message);
+  const explicitNtop = hasExplicitNtopLookup(message);
+  if (/(?:สร้าง|เพิ่ม|บันทึก|เก็บ|create|add|save)/iu.test(message))
+    return null;
+  if (!kind && !explicitNtop) return null;
+  if (!LOOKUP_REQUEST.test(message)) return null;
+
+  const filter = message
+    .match(
+      /(?:ที่เป็น|ประเภท|กลุ่ม|อุตสาหกรรม)\s*[:：-]?\s*["“”']?(.+?)["“”']?(?=\s*(?:จาก|ใน)\s+ntop\b|[?？]|$)/iu,
+    )?.[1]
+    ?.trim();
+  if (filter) {
+    const queries = lookupCandidates(filter);
+    if (queries.length) return { kind, queries, label: filter, filter: true };
+  }
+
+  if (company) {
+    const queries = lookupCandidates(company);
+    if (queries.length) return { kind, queries, label: company, filter: false };
+  }
+
+  if (!explicitNtop) return null;
+  const query = explicitNtopQuery(message);
+  const explicitQueries = lookupCandidates(query);
+  return explicitQueries.length
+    ? { kind, queries: explicitQueries, label: query, filter: false }
+    : null;
 }
 
 function displayValue(record: RecordValue, ...keys: string[]) {
@@ -104,6 +177,33 @@ function displayValue(record: RecordValue, ...keys: string[]) {
     if (typeof value === "number") return String(value);
   }
   return "";
+}
+
+async function searchQueries(
+  queries: string[],
+  search: (query: string) => Promise<RecordValue[]>,
+) {
+  const records = (await Promise.all(queries.map(search))).flat();
+  const seen = new Set<string>();
+  return records.filter((record) => {
+    const key =
+      displayValue(
+        record,
+        "id",
+        "prospectCode",
+        "customerNumber",
+        "customerCode",
+        "leadNumber",
+        "opportunityNumber",
+        "quotationNumber",
+        "quoteNumber",
+        "productCode",
+        "code",
+      ) || JSON.stringify(record);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function lookupRecordLine(kind: LookupKind, record: RecordValue) {
@@ -133,6 +233,7 @@ function lookupMessage(
   message: string,
   company: string,
   groups: Record<LookupKind, RecordValue[]>,
+  filter = false,
 ) {
   const requested = requestedLookupKind(message);
   const selected = requested ? groups[requested] : [];
@@ -145,16 +246,24 @@ function lookupMessage(
           `${index + 1}. ${lookupRecordLine(requested, record)}`,
       );
     return isThaiMessage
-      ? `พบ ${requested} ของ ${company} ใน NTOP จำนวน ${selected.length} รายการ\n\n${lines.join("\n")}`
-      : `Found ${selected.length} ${requested.toLowerCase()} record(s) for ${company} in NTOP.\n\n${lines.join("\n")}`;
+      ? filter
+        ? `พบ ${requested} ที่ตรงกับ “${company}” ใน NTOP จำนวน ${selected.length} รายการ\n\n${lines.join("\n")}`
+        : `พบ ${requested} ของ ${company} ใน NTOP จำนวน ${selected.length} รายการ\n\n${lines.join("\n")}`
+      : filter
+        ? `Found ${selected.length} ${requested.toLowerCase()} record(s) matching “${company}” in NTOP.\n\n${lines.join("\n")}`
+        : `Found ${selected.length} ${requested.toLowerCase()} record(s) for ${company} in NTOP.\n\n${lines.join("\n")}`;
   }
   const counts = Object.entries(groups)
     .filter(([, records]) => records.length)
     .map(([kind, records]) => `${kind}: ${records.length}`);
   if (!counts.length)
     return isThaiMessage
-      ? `ไม่พบข้อมูลของ ${company} ใน NTOP`
-      : `No NTOP records were found for ${company}.`;
+      ? filter && requested
+        ? `ไม่พบ ${requested} ที่ตรงกับ “${company}” ใน NTOP`
+        : `ไม่พบข้อมูลของ ${company} ใน NTOP`
+      : filter && requested
+        ? `No ${requested.toLowerCase()} records matching “${company}” were found in NTOP.`
+        : `No NTOP records were found for ${company}.`;
   return isThaiMessage
     ? `พบข้อมูลของ ${company} ใน NTOP: ${counts.join(", ")}`
     : `Found NTOP records for ${company}: ${counts.join(", ")}`;
@@ -167,40 +276,86 @@ export async function orchestrateNtopChat(
 ): Promise<NtopChatOutcome> {
   const contextMessages = options.contextMessages ?? [];
   const fallbackIntent = fallbackNtopSalesIntent(message, contextMessages);
+  const explicitNtopLookup = hasExplicitNtopLookup(message);
+  const fallbackLookup = lookupPlan(message, fallbackIntent.company);
   const connection = await configuredNtopConnectionForUser(userId, {
     allowLegacyKey: true,
   });
   if (!connection) {
-    if (fallbackIntent.intent === "NONE" || !fallbackIntent.company)
+    const lookupTarget =
+      fallbackLookup?.label ?? fallbackIntent.company ?? "NTOP";
+    if (
+      (fallbackIntent.intent === "NONE" || !fallbackIntent.company) &&
+      !fallbackLookup &&
+      !explicitNtopLookup
+    )
       return { evidence: [], toolUsed: false };
     return {
       evidence: [],
       toolUsed: true,
       warning: /[\u0E00-\u0E7F]/.test(message)
-        ? fallbackIntent.intent === "LOOKUP"
-          ? `ตรวจพบคำขอค้นข้อมูลของ ${fallbackIntent.company} แต่ AI-Sales ยังไม่ได้เชื่อมต่อ NTOP กรุณาให้ผู้ดูแลตั้งค่า NTOP integration แล้วลองอีกครั้ง`
+        ? explicitNtopLookup ||
+          fallbackLookup ||
+          fallbackIntent.intent === "LOOKUP"
+          ? `ตรวจพบคำขอค้นข้อมูลของ ${lookupTarget} แต่ AI-Sales ยังไม่ได้เชื่อมต่อ NTOP กรุณาให้ผู้ดูแลตั้งค่า NTOP integration แล้วลองอีกครั้ง`
           : `ตรวจพบข้อมูลที่เหมาะสำหรับบันทึกเป็น Prospect ของ ${fallbackIntent.company} แต่ AI-Sales ยังไม่ได้เชื่อมต่อ NTOP กรุณาให้ผู้ดูแลตั้งค่า NTOP integration แล้วลองอีกครั้ง`
-        : fallbackIntent.intent === "LOOKUP"
-          ? `I detected an NTOP lookup for ${fallbackIntent.company}, but AI-Sales is not connected to NTOP. Ask an administrator to configure the integration and try again.`
+        : explicitNtopLookup ||
+            fallbackLookup ||
+            fallbackIntent.intent === "LOOKUP"
+          ? `I detected an NTOP lookup for ${lookupTarget}, but AI-Sales is not connected to NTOP. Ask an administrator to configure the integration and try again.`
           : `This looks suitable for a Prospect for ${fallbackIntent.company}, but AI-Sales is not connected to NTOP. Ask an administrator to configure the NTOP integration and try again.`,
       toolErrorCode: "NTOP_NOT_CONFIGURED",
     };
   }
   const { client } = connection;
   const intent = await detectNtopSalesIntent(message, contextMessages);
-  if (intent.intent === "NONE" || !intent.company)
+  const deterministicLookup = lookupPlan(
+    message,
+    intent.company ?? fallbackIntent.company,
+  );
+  if (
+    (intent.intent === "NONE" || !intent.company) &&
+    !deterministicLookup &&
+    !explicitNtopLookup
+  )
     return { evidence: [], toolUsed: false };
+  if (explicitNtopLookup && !deterministicLookup)
+    return {
+      evidence: [],
+      toolUsed: true,
+      message: /[\u0E00-\u0E7F]/.test(message)
+        ? "กรุณาระบุชื่อบริษัท ประเภทข้อมูล หรือคำค้นที่ต้องการค้นจาก NTOP"
+        : "Specify a company, record type, or search term to look up in NTOP.",
+    };
+  const isLookup =
+    explicitNtopLookup ||
+    Boolean(deterministicLookup) ||
+    intent.intent === "LOOKUP";
+  const lookupKind = isLookup
+    ? (deterministicLookup?.kind ?? requestedLookupKind(message))
+    : null;
+  const searchTerms = deterministicLookup?.queries ?? [intent.company!];
   const productLookup =
-    intent.intent === "LOOKUP" && requestedLookupKind(message) === "PRODUCT"
-      ? client.searchProduct(intent.company)
+    lookupKind === "PRODUCT"
+      ? searchQueries(searchTerms, (query) => client.searchProduct(query))
       : Promise.resolve([]);
   const [customers, prospects, leads, opportunities, quotations, products] =
     await Promise.all([
-      client.searchCustomer(intent.company),
-      client.searchProspect(intent.company),
-      client.searchLead(intent.company),
-      client.searchOpportunity(intent.company),
-      client.searchQuotation(intent.company),
+      !lookupKind || lookupKind === "CUSTOMER"
+        ? searchQueries(searchTerms, (query) => client.searchCustomer(query))
+        : Promise.resolve([]),
+      !lookupKind || lookupKind === "PROSPECT"
+        ? searchQueries(searchTerms, (query) => client.searchProspect(query))
+        : Promise.resolve([]),
+      !lookupKind || lookupKind === "LEAD"
+        ? searchQueries(searchTerms, (query) => client.searchLead(query))
+        : Promise.resolve([]),
+      !lookupKind || lookupKind === "OPPORTUNITY"
+        ? searchQueries(searchTerms, (query) => client.searchOpportunity(query))
+        : Promise.resolve([]),
+      !lookupKind || lookupKind === "QUOTATION"
+        ? searchQueries(searchTerms, (query) => client.searchQuotation(query))
+        : Promise.resolve([]),
       productLookup,
     ]);
   const groups: Record<LookupKind, RecordValue[]> = {
@@ -219,7 +374,7 @@ export async function orchestrateNtopChat(
     ...quotations,
     ...products,
   ] as RecordValue[];
-  if (intent.intent === "LOOKUP") {
+  if (isLookup) {
     const firstOpportunity = opportunities[0] as RecordValue | undefined;
     const detail =
       firstOpportunity && typeof firstOpportunity.id === "string"
@@ -228,47 +383,54 @@ export async function orchestrateNtopChat(
     return {
       evidence: evidence(
         detail ? [...combined, detail] : combined,
-        intent.company,
+        deterministicLookup?.label ?? intent.company!,
       ),
       toolUsed: true,
-      message: lookupMessage(message, intent.company, groups),
+      message: lookupMessage(
+        message,
+        deterministicLookup?.label ?? intent.company!,
+        groups,
+        deterministicLookup?.filter,
+      ),
     };
   }
+  const company = intent.company;
+  if (!company) return { evidence: [], toolUsed: false };
 
   if (connection.credentialSource !== "USER")
     return {
-      evidence: evidence(combined, intent.company),
+      evidence: evidence(combined, company),
       toolUsed: true,
       warning: /[\u0E00-\u0E7F]/.test(message)
-        ? `พบข้อมูลของ ${intent.company} แล้ว แต่ยังเสนอรายการเขียนไม่ได้ กรุณาเชื่อม personal NTOP API Key ในหน้า Profile แล้วลองอีกครั้ง`
-        : `I found records for ${intent.company}, but cannot propose a write yet. Connect your personal NTOP API Key in Profile and try again.`,
+        ? `พบข้อมูลของ ${company} แล้ว แต่ยังเสนอรายการเขียนไม่ได้ กรุณาเชื่อม personal NTOP API Key ในหน้า Profile แล้วลองอีกครั้ง`
+        : `I found records for ${company}, but cannot propose a write yet. Connect your personal NTOP API Key in Profile and try again.`,
       toolErrorCode: "NTOP_PERSONAL_KEY_REQUIRED",
     };
 
   const existingOpportunity = (opportunities as RecordValue[]).find((item) =>
-    exactCompany(item, intent.company!),
+    exactCompany(item, company),
   );
   if (existingOpportunity)
     return {
-      evidence: evidence(combined, intent.company),
+      evidence: evidence(combined, company),
       toolUsed: true,
-      message: `พบ Opportunity ที่เกี่ยวข้องกับ ${intent.company} อยู่แล้วใน NTOP จึงยังไม่เสนอสร้างรายการซ้ำ กรุณาระบุว่าต้องการอัปเดต Opportunity ใด`,
+      message: `พบ Opportunity ที่เกี่ยวข้องกับ ${company} อยู่แล้วใน NTOP จึงยังไม่เสนอสร้างรายการซ้ำ กรุณาระบุว่าต้องการอัปเดต Opportunity ใด`,
     };
   const customer = (customers as RecordValue[]).find((item) =>
-    exactCompany(item, intent.company!),
+    exactCompany(item, company),
   );
   const prospect = (prospects as RecordValue[]).find((item) =>
-    exactCompany(item, intent.company!),
+    exactCompany(item, company),
   );
   const lead = (leads as RecordValue[]).find((item) =>
-    exactCompany(item, intent.company!),
+    exactCompany(item, company),
   );
 
   if (lead) {
     return {
-      evidence: evidence(combined, intent.company),
+      evidence: evidence(combined, company),
       toolUsed: true,
-      message: `พบ Lead ของ ${intent.company} อยู่แล้วใน NTOP จึงยังไม่เสนอสร้างรายการซ้ำ`,
+      message: `พบ Lead ของ ${company} อยู่แล้วใน NTOP จึงยังไม่เสนอสร้างรายการซ้ำ`,
     };
   }
 
@@ -277,9 +439,9 @@ export async function orchestrateNtopChat(
     typeof customer.id === "string" &&
     (intent.requirement || intent.solution || intent.estimatedValue)
   ) {
-    const name = `${intent.company} - ${intent.solution ?? intent.requirement ?? "New Opportunity"}`;
+    const name = `${company} - ${intent.solution ?? intent.requirement ?? "New Opportunity"}`;
     return {
-      evidence: evidence(combined, intent.company),
+      evidence: evidence(combined, company),
       toolUsed: true,
       action: {
         type: "CREATE_OPPORTUNITY",
@@ -317,14 +479,14 @@ export async function orchestrateNtopChat(
     (intent.contactEmail || intent.contactPhone)
   ) {
     return {
-      evidence: evidence(combined, intent.company),
+      evidence: evidence(combined, company),
       toolUsed: true,
       action: {
         type: "CREATE_LEAD",
-        title: `Lead ใหม่: ${intent.company}`,
-        summary: `${intent.company} · ${intent.solution ?? intent.requirement ?? "Sales inquiry"}`,
+        title: `Lead ใหม่: ${company}`,
+        summary: `${company} · ${intent.solution ?? intent.requirement ?? "Sales inquiry"}`,
         payload: {
-          company: intent.company,
+          company,
           contactName: intent.contactName,
           contactEmail: intent.contactEmail ?? "",
           contactPhone: intent.contactPhone ?? undefined,
@@ -340,29 +502,29 @@ export async function orchestrateNtopChat(
 
   if (prospect) {
     return {
-      evidence: evidence(combined, intent.company),
+      evidence: evidence(combined, company),
       toolUsed: true,
-      message: `พบ Prospect ของ ${intent.company} อยู่แล้วใน NTOP จึงยังไม่เสนอสร้างรายการซ้ำ กรุณาระบุข้อมูลผู้ติดต่อหากต้องการสร้าง Lead`,
+      message: `พบ Prospect ของ ${company} อยู่แล้วใน NTOP จึงยังไม่เสนอสร้างรายการซ้ำ กรุณาระบุข้อมูลผู้ติดต่อหากต้องการสร้าง Lead`,
     };
   }
 
   if (customer) {
     return {
-      evidence: evidence(combined, intent.company),
+      evidence: evidence(combined, company),
       toolUsed: true,
-      message: `พบ Customer ${intent.company} ใน NTOP แล้ว แต่ข้อมูลยังไม่เพียงพอสำหรับสร้าง Opportunity กรุณาระบุ Requirement หรือ Solution ที่สนใจ`,
+      message: `พบ Customer ${company} ใน NTOP แล้ว แต่ข้อมูลยังไม่เพียงพอสำหรับสร้าง Opportunity กรุณาระบุ Requirement หรือ Solution ที่สนใจ`,
     };
   }
 
   return {
-    evidence: evidence(combined, intent.company),
+    evidence: evidence(combined, company),
     toolUsed: true,
     action: {
       type: "CREATE_PROSPECT",
-      title: `Prospect ใหม่: ${intent.company}`,
-      summary: `${intent.company} · ${intent.solution ?? intent.requirement ?? "Sales inquiry"} · ${money(intent.estimatedValue)}`,
+      title: `Prospect ใหม่: ${company}`,
+      summary: `${company} · ${intent.solution ?? intent.requirement ?? "Sales inquiry"} · ${money(intent.estimatedValue)}`,
       payload: {
-        companyName: intent.company,
+        companyName: company,
         source: "MANUAL",
         status: "NEW",
         businessPainPoints: intent.requirement ?? undefined,
