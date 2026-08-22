@@ -39,6 +39,7 @@ import {
   searchWeb,
   type WebSearchEvidence,
 } from "@/server/services/web-search";
+import type { ParsedChatAttachment } from "@/server/services/chat-attachment-service";
 
 function isThai(value: string) {
   return /[\u0E00-\u0E7F]/.test(value);
@@ -96,6 +97,60 @@ function overlapScore(query: string, content: string) {
   if (!terms.size) return 0.1;
   const text = content.toLocaleLowerCase();
   return [...terms].filter((term) => text.includes(term)).length / terms.size;
+}
+
+function chatAttachmentEvidence(
+  attachments: ParsedChatAttachment[],
+  query: string,
+  contextSize: number,
+): GroundingEvidence[] {
+  if (!attachments.length) return [];
+  const attachmentBudget = Math.max(500, Math.floor(contextSize * 0.8));
+  const perFileBudget = Math.max(
+    100,
+    Math.floor(attachmentBudget / attachments.length),
+  );
+
+  return attachments.map((attachment) => {
+    const rankedSections = attachment.sections
+      .map((section, index) => ({
+        ...section,
+        index,
+        relevance: overlapScore(query, section.text),
+      }))
+      .sort(
+        (left, right) =>
+          right.relevance - left.relevance || left.index - right.index,
+      );
+    let remaining = perFileBudget;
+    const selected: string[] = [];
+    for (const section of rankedSections) {
+      if (remaining <= 0) break;
+      const location = Object.entries(section.metadata)
+        .map(([key, value]) => `${key} ${value}`)
+        .join(", ");
+      const prefix = location ? `[${location}]\n` : "";
+      const text = `${prefix}${section.text}`.slice(0, remaining);
+      if (text) selected.push(text);
+      remaining -= text.length + 2;
+    }
+    const id = `chat-attachment:${attachment.checksum}`;
+    return {
+      content: selected.join("\n\n"),
+      contentHash: attachment.checksum,
+      metadata: {
+        sourceType: "CHAT_ATTACHMENT",
+        attachmentName: attachment.name,
+      },
+      documentId: id,
+      sourceId: id,
+      documentName: attachment.name,
+      mimeType: attachment.mimeType,
+      vectorScore: 0,
+      keywordScore: 1,
+      score: 1,
+    };
+  });
 }
 
 async function scopedChatEvidence(
@@ -494,6 +549,7 @@ export async function sendKnowledgeChatMessage(
       | "QUERY_LIVE_DATA";
     sourceIds?: string[];
     webSearch?: boolean;
+    attachments?: ParsedChatAttachment[];
     isUniversal?: boolean;
     onToken?: (token: string) => void | Promise<void>;
   },
@@ -603,6 +659,9 @@ export async function sendKnowledgeChatMessage(
       });
   if (!conversation) return failure("NOT_FOUND", "Conversation not found.");
   const requestId = crypto.randomUUID();
+  const attachmentSummaries = (input.attachments ?? []).map(
+    ({ name, size, mimeType }) => ({ name, size, mimeType }),
+  );
   const userMessage = await db.chatMessage.create({
     data: {
       conversationId: conversation.id,
@@ -615,6 +674,7 @@ export async function sendKnowledgeChatMessage(
         botId: bot.id,
         sourceIds: input.sourceIds ?? [],
         webSearch: input.webSearch ?? false,
+        attachments: attachmentSummaries,
       },
     },
   });
@@ -622,7 +682,9 @@ export async function sendKnowledgeChatMessage(
     context.organizationId,
   );
   const ntopContextPromise =
-    input.webSearch || !hasNtopSalesSignal(input.message)
+    input.webSearch ||
+    attachmentSummaries.length > 0 ||
+    !hasNtopSalesSignal(input.message)
       ? Promise.resolve([] as string[])
       : db.chatMessage
           .findMany({
@@ -652,18 +714,19 @@ export async function sendKnowledgeChatMessage(
   const webSearchDurationMs = Math.round(
     performance.now() - webSearchStartedAt,
   );
-  const ntopOutcome: NtopChatOutcome = input.webSearch
-    ? { evidence: [], toolUsed: false }
-    : await orchestrateNtopChat(context.userId, input.message, {
-        contextMessages: await ntopContextPromise,
-      }).catch(() => ({
-        evidence: [],
-        toolUsed: true,
-        toolErrorCode: "NTOP_UNAVAILABLE" as const,
-        message: isThai(input.message)
-          ? "ไม่สามารถเชื่อมต่อ NTOP Business Memory ได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง"
-          : "NTOP Business Memory is currently unavailable. Please try again.",
-      }));
+  const ntopOutcome: NtopChatOutcome =
+    input.webSearch || attachmentSummaries.length
+      ? { evidence: [], toolUsed: false }
+      : await orchestrateNtopChat(context.userId, input.message, {
+          contextMessages: await ntopContextPromise,
+        }).catch(() => ({
+          evidence: [],
+          toolUsed: true,
+          toolErrorCode: "NTOP_UNAVAILABLE" as const,
+          message: isThai(input.message)
+            ? "ไม่สามารถเชื่อมต่อ NTOP Business Memory ได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง"
+            : "NTOP Business Memory is currently unavailable. Please try again.",
+        }));
   const startedAt = performance.now();
   let databaseQuestion = input.message;
   let databaseQueryConfirmed = false;
@@ -692,7 +755,10 @@ export async function sendKnowledgeChatMessage(
     }
   }
   const databaseAnswer =
-    !ntopOutcome.toolUsed && databaseScope && bot.databaseToolsEnabled
+    !attachmentSummaries.length &&
+    !ntopOutcome.toolUsed &&
+    databaseScope &&
+    bot.databaseToolsEnabled
       ? await answerFromAssignedDatabase(context, bot, databaseQuestion, {
           forceQuery:
             databaseQueryConfirmed ||
@@ -701,7 +767,7 @@ export async function sendKnowledgeChatMessage(
         })
       : null;
   const legacyApiAnswer =
-    databaseAnswer || ntopOutcome.toolUsed
+    attachmentSummaries.length || databaseAnswer || ntopOutcome.toolUsed
       ? null
       : ["SMART", "ALL_ACCESSIBLE", "API_TOOLS"].includes(scope) &&
           bot.apiToolsEnabled
@@ -748,6 +814,11 @@ export async function sendKnowledgeChatMessage(
     privacyPolicyPromise,
   ]);
   const evidence = [
+    ...chatAttachmentEvidence(
+      input.attachments ?? [],
+      input.message,
+      bot.providerConfig?.contextSize ?? 12_000,
+    ),
     ...webSearchEvidence,
     ...ntopOutcome.evidence,
     ...retrievedEvidence,
@@ -1032,7 +1103,11 @@ export async function sendKnowledgeChatMessage(
   const assistant = completedTurn.message;
   return success({
     conversation: { id: conversation.id, title: conversation.title },
-    userMessage: { id: userMessage.id, content: userMessage.content },
+    userMessage: {
+      id: userMessage.id,
+      content: userMessage.content,
+      attachments: attachmentSummaries.map(({ name }) => name),
+    },
     assistantMessage: {
       id: assistant.id,
       role: "ASSISTANT" as const,
@@ -1129,6 +1204,7 @@ export async function sendUniversalChatMessage(
       | "QUERY_LIVE_DATA";
     sourceIds: string[];
     webSearch?: boolean;
+    attachments?: ParsedChatAttachment[];
     onToken?: (token: string) => void | Promise<void>;
   },
 ) {
@@ -1183,6 +1259,7 @@ export async function sendUniversalChatMessage(
     mode: input.mode,
     sourceIds: input.sourceIds,
     webSearch: input.webSearch,
+    attachments: input.attachments,
     isUniversal: true,
     authMode: context.authMode ?? "LOCAL",
     onToken: input.onToken,

@@ -5,59 +5,15 @@ import { requireKnowledgeRackAccess } from "@/server/auth/knowledge-access";
 import { db } from "@/server/db";
 import { env } from "@/schemas/env";
 import { isSupportedDocument } from "@/packages/knowledge/document-types";
+import {
+  validKnowledgeUploadIdentity,
+  validKnowledgeUploadMagic,
+} from "@/packages/knowledge/upload-validation";
+export { validKnowledgeUploadIdentity } from "@/packages/knowledge/upload-validation";
 import { LocalObjectStorageService } from "@/server/storage/local-storage";
 import { enqueueDocumentIndexJob } from "@/server/services/job-queue";
 import { logger } from "@/server/services/logger";
 import { failure, success } from "@/types/result";
-
-function validMagic(bytes: Buffer, fileName: string) {
-  const extension = fileName.split(".").pop()?.toLowerCase();
-  if (extension === "pdf") return bytes.subarray(0, 4).toString() === "%PDF";
-  if (["docx", "xlsx"].includes(extension ?? ""))
-    return bytes[0] === 0x50 && bytes[1] === 0x4b;
-  return !bytes.subarray(0, 512).includes(0);
-}
-
-const MIME_BY_EXTENSION: Record<string, Set<string>> = {
-  pdf: new Set(["application/pdf", "application/octet-stream", ""]),
-  docx: new Set([
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "application/octet-stream",
-    "",
-  ]),
-  xlsx: new Set([
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "application/octet-stream",
-    "",
-  ]),
-  csv: new Set(["text/csv", "text/plain", "application/octet-stream", ""]),
-  txt: new Set(["text/plain", "application/octet-stream", ""]),
-  md: new Set(["text/markdown", "text/plain", "application/octet-stream", ""]),
-  markdown: new Set([
-    "text/markdown",
-    "text/plain",
-    "application/octet-stream",
-    "",
-  ]),
-  html: new Set(["text/html", "application/octet-stream", ""]),
-  htm: new Set(["text/html", "application/octet-stream", ""]),
-};
-
-export function validKnowledgeUploadIdentity(
-  fileName: string,
-  mimeType: string,
-) {
-  const normalized = fileName.normalize("NFKC");
-  const extension = normalized.split(".").pop()?.toLowerCase() ?? "";
-  return (
-    normalized.length >= 1 &&
-    normalized.length <= 180 &&
-    path.basename(normalized) === normalized &&
-    !/[\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069]/u.test(normalized) &&
-    !normalized.startsWith(".") &&
-    Boolean(MIME_BY_EXTENSION[extension]?.has(mimeType.toLowerCase()))
-  );
-}
 
 async function embeddingModelForOrganization(organizationId: string) {
   const [endpoint, provider] = await Promise.all([
@@ -95,7 +51,7 @@ export async function uploadKnowledgeDocument(
       "Upload a supported PDF, DOCX, XLSX, CSV, TXT, Markdown, or HTML file within the configured size limit.",
     );
   const bytes = Buffer.from(await file.arrayBuffer());
-  if (!validMagic(bytes, file.name))
+  if (!validKnowledgeUploadMagic(bytes, file.name))
     return failure(
       "FILE_INVALID",
       "The file signature does not match its type.",

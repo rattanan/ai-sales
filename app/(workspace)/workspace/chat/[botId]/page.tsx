@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { KnowledgeChat } from "@/components/chat/knowledge-chat";
+import { chatAttachmentNames } from "@/lib/chat-attachments";
 import { requireAuthorization } from "@/server/auth/authorization";
 import { requireBotUse } from "@/server/auth/knowledge-access";
 import { db } from "@/server/db";
@@ -119,6 +120,7 @@ export default async function KnowledgeChatPage({
         id: message.id,
         role: message.role as "USER" | "ASSISTANT",
         content: message.content,
+        attachments: chatAttachmentNames(message.scopeConfig),
         errorCode: message.errorCode,
         rating: message.feedback?.rating,
         suggestedAction: message.ntopActions[0]

@@ -21,6 +21,10 @@ import { Button } from "@/components/ui/button";
 import { MessageFeedbackButtons } from "@/components/chat/message-feedback-buttons";
 import { readChatStream } from "@/lib/chat-stream";
 import { NtopActionCard } from "@/components/chat/ntop-action-card";
+import {
+  ChatAttachmentPicker,
+  ChatMessageAttachments,
+} from "@/components/chat/chat-attachment-picker";
 import type { NtopSuggestedAction } from "@/schemas/ntop";
 
 type Message = {
@@ -37,11 +41,12 @@ type Message = {
   toolActivity?: { type: string; status: string };
   rating?: number | null;
   suggestedAction?: NtopSuggestedAction;
+  attachments?: string[];
 };
 
 type ChatTurnResult = {
   conversation: { id: string };
-  userMessage: { id: string; content: string };
+  userMessage: { id: string; content: string; attachments?: string[] };
   assistantMessage: Message;
 };
 
@@ -98,6 +103,7 @@ export function UniversalChat({
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState("");
   const [webSearch, setWebSearch] = useState(false);
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const showBot = scope === "SPECIFIC_BOT";
   const showSources = scope === "SPECIFIC_SOURCES";
   const selectedSources = useMemo(() => new Set(sourceIds), [sourceIds]);
@@ -114,10 +120,14 @@ export function UniversalChat({
     setStreaming(false);
     setError("");
     setWebSearch(false);
+    setAttachedFiles([]);
   }
 
   async function send() {
-    const content = message.trim();
+    const filesToSend = attachedFiles;
+    const content =
+      message.trim() ||
+      (filesToSend.length ? "Please summarize the attached file(s)." : "");
     if (!content || pending) return;
     if (showBot && !botId) {
       setError("Select a bot for Specific Bot scope.");
@@ -132,6 +142,7 @@ export function UniversalChat({
       role: "USER",
       content,
       citations: [],
+      attachments: filesToSend.map((file) => file.name),
     };
     const streamingId = `streaming-${Date.now()}`;
     setMessages((items) => [
@@ -140,21 +151,30 @@ export function UniversalChat({
       { id: streamingId, role: "ASSISTANT", content: "", citations: [] },
     ]);
     setMessage("");
+    setAttachedFiles([]);
     setPending(true);
     setError("");
     try {
+      const requestPayload = {
+        conversationId,
+        message: content,
+        scope,
+        mode,
+        botId: showBot ? botId : undefined,
+        sourceIds: showSources ? sourceIds : [],
+        webSearch,
+      };
+      const formData = new FormData();
+      formData.set("payload", JSON.stringify(requestPayload));
+      filesToSend.forEach((file) => formData.append("attachments", file));
       const response = await fetch("/api/universal-chat", {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          conversationId,
-          message: content,
-          scope,
-          mode,
-          botId: showBot ? botId : undefined,
-          sourceIds: showSources ? sourceIds : [],
-          webSearch,
-        }),
+        ...(filesToSend.length
+          ? { body: formData }
+          : {
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(requestPayload),
+            }),
       });
       const payload = await readChatStream<ChatTurnResult>(response, {
         onToken(token) {
@@ -182,6 +202,7 @@ export function UniversalChat({
         { scroll: false },
       );
     } catch (reason) {
+      setAttachedFiles(filesToSend);
       setError(
         reason instanceof Error
           ? reason.message
@@ -405,6 +426,7 @@ export function UniversalChat({
                     ▍
                   </span>
                 ) : null}
+                <ChatMessageAttachments names={item.attachments} />
               </div>
               {item.toolActivity ? (
                 <p className="mt-2 inline-flex rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
@@ -501,34 +523,45 @@ export function UniversalChat({
               ) : null}
             </div>
           ) : null}
-          <div className="flex gap-2">
-            <textarea
-              aria-label="Message AI-Sales"
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-              onKeyDown={(event) => {
-                if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-                  event.preventDefault();
-                  void send();
-                }
-              }}
-              placeholder="Ask AI-Sales…"
-              rows={2}
-              className="min-h-12 flex-1 resize-none rounded-xl border bg-background p-3 text-sm"
+          <div className="space-y-2">
+            <ChatAttachmentPicker
+              files={attachedFiles}
+              disabled={pending}
+              onChange={setAttachedFiles}
+              onError={setError}
             />
-            <Button
-              type="button"
-              onClick={() => void send()}
-              disabled={pending || !message.trim()}
-              aria-label="Send message"
-            >
-              <Send size={17} />
-              <span className="hidden sm:inline">Send</span>
-            </Button>
+            <div className="flex gap-2">
+              <textarea
+                aria-label="Message AI-Sales"
+                value={message}
+                onChange={(event) => setMessage(event.target.value)}
+                onKeyDown={(event) => {
+                  if (
+                    (event.metaKey || event.ctrlKey) &&
+                    event.key === "Enter"
+                  ) {
+                    event.preventDefault();
+                    void send();
+                  }
+                }}
+                placeholder="Ask AI-Sales…"
+                rows={2}
+                className="min-h-12 flex-1 resize-none rounded-xl border bg-background p-3 text-sm"
+              />
+              <Button
+                type="button"
+                onClick={() => void send()}
+                disabled={pending || (!message.trim() && !attachedFiles.length)}
+                aria-label="Send message"
+              >
+                <Send size={17} />
+                <span className="hidden sm:inline">Send</span>
+              </Button>
+            </div>
           </div>
           <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
-            <Bot size={13} /> Scope and mode are stored on every turn. Ctrl/Cmd
-            + Enter to send. <ChevronRight size={13} />{" "}
+            <Bot size={13} /> Attach up to 3 supported documents. Ctrl/Cmd +
+            Enter to send. <ChevronRight size={13} />{" "}
           </p>
         </div>
       </section>

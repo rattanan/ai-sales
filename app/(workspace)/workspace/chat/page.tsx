@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { UniversalChat } from "@/components/chat/universal-chat";
+import { chatAttachmentNames } from "@/lib/chat-attachments";
 import { requireAuthorization } from "@/server/auth/authorization";
 import { requirePermission } from "@/server/auth/permissions";
 import { requireBotUse } from "@/server/auth/knowledge-access";
@@ -122,6 +123,7 @@ export default async function ChatIndexPage({
         id: message.id,
         role: message.role as "USER" | "ASSISTANT",
         content: message.content,
+        attachments: chatAttachmentNames(message.scopeConfig),
         errorCode: message.errorCode,
         citations: message.citations.map((citation) => ({
           id: citation.id,

@@ -18,6 +18,10 @@ import { Button } from "@/components/ui/button";
 import { MessageFeedbackButtons } from "@/components/chat/message-feedback-buttons";
 import { readChatStream } from "@/lib/chat-stream";
 import { NtopActionCard } from "@/components/chat/ntop-action-card";
+import {
+  ChatAttachmentPicker,
+  ChatMessageAttachments,
+} from "@/components/chat/chat-attachment-picker";
 import type { NtopSuggestedAction } from "@/schemas/ntop";
 import {
   deleteConversationAction,
@@ -41,11 +45,12 @@ type ChatMessage = {
   citations: Citation[];
   rating?: number | null;
   suggestedAction?: NtopSuggestedAction;
+  attachments?: string[];
 };
 
 type ChatTurnResult = {
   conversation: { id: string };
-  userMessage: { id: string; content: string };
+  userMessage: { id: string; content: string; attachments?: string[] };
   assistantMessage: ChatMessage;
 };
 
@@ -85,6 +90,7 @@ export function KnowledgeChat({
   const [search, setSearch] = useState(historyQuery);
   const [projectId, setProjectId] = useState("");
   const [webSearch, setWebSearch] = useState(false);
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const optimisticSequence = useRef(0);
   const visibleConversations = useMemo(
     () =>
@@ -95,30 +101,48 @@ export function KnowledgeChat({
   );
 
   async function send(text = input) {
-    const message = text.trim();
+    const filesToSend = attachedFiles;
+    const message =
+      text.trim() ||
+      (filesToSend.length ? "Please summarize the attached file(s)." : "");
     if (!message || pending) return;
     setPending(true);
     setError(undefined);
     setInput("");
+    setAttachedFiles([]);
     optimisticSequence.current += 1;
     const optimisticId = `pending-${optimisticSequence.current}`;
     const streamingId = `streaming-${optimisticSequence.current}`;
     setMessages((current) => [
       ...current,
-      { id: optimisticId, role: "USER", content: message, citations: [] },
+      {
+        id: optimisticId,
+        role: "USER",
+        content: message,
+        citations: [],
+        attachments: filesToSend.map((file) => file.name),
+      },
       { id: streamingId, role: "ASSISTANT", content: "", citations: [] },
     ]);
     try {
+      const requestPayload = {
+        botId: bot.id,
+        conversationId,
+        projectId: conversationId ? undefined : projectId || undefined,
+        message,
+        webSearch,
+      };
+      const formData = new FormData();
+      formData.set("payload", JSON.stringify(requestPayload));
+      filesToSend.forEach((file) => formData.append("attachments", file));
       const response = await fetch("/api/knowledge-chat", {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          botId: bot.id,
-          conversationId,
-          projectId: conversationId ? undefined : projectId || undefined,
-          message,
-          webSearch,
-        }),
+        ...(filesToSend.length
+          ? { body: formData }
+          : {
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(requestPayload),
+            }),
       });
       const payload = await readChatStream<ChatTurnResult>(response, {
         onToken(token) {
@@ -147,6 +171,7 @@ export function KnowledgeChat({
         router.refresh();
       }
     } catch (caught) {
+      setAttachedFiles(filesToSend);
       setMessages((current) =>
         current.filter(({ id }) => id !== optimisticId && id !== streamingId),
       );
@@ -345,6 +370,7 @@ export function KnowledgeChat({
                     </span>
                   ) : null}
                 </p>
+                <ChatMessageAttachments names={message.attachments} />
                 {message.citations.length ? (
                   <div className="mt-4 space-y-2 border-t pt-3">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -377,6 +403,8 @@ export function KnowledgeChat({
                         citation.metadata?.sourceType === "DATABASE";
                       const legacyApiSource =
                         citation.metadata?.sourceType === "LEGACY_API";
+                      const temporaryAttachment =
+                        citation.metadata?.sourceType === "CHAT_ATTACHMENT";
                       const connectionName =
                         typeof citation.metadata?.connectionName === "string"
                           ? citation.metadata.connectionName
@@ -472,7 +500,7 @@ export function KnowledgeChat({
                             >
                               <FileText size={13} /> Open web source
                             </a>
-                          ) : documentId ? (
+                          ) : documentId && !temporaryAttachment ? (
                             <a
                               href={`/api/documents/${documentId}/download${page ? `#page=${page}` : ""}`}
                               target="_blank"
@@ -602,34 +630,42 @@ export function KnowledgeChat({
               event.preventDefault();
               void send();
             }}
-            className="mx-auto flex max-w-4xl items-end gap-2"
+            className="mx-auto max-w-4xl space-y-2"
           >
-            <label className="flex-1">
-              <span className="sr-only">Message {bot.name}</span>
-              <textarea
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    void send();
-                  }
-                }}
-                placeholder="Ask from your permitted knowledge…"
-                className="max-h-40 min-h-12 w-full resize-y rounded-xl border bg-slate-50 px-4 py-3 text-sm focus-visible:ring-2 focus-visible:ring-indigo-500"
-              />
-            </label>
-            <Button
-              type="submit"
-              disabled={pending || !input.trim()}
-              aria-label="Send message"
-            >
-              <ArrowUp size={18} />
-            </Button>
+            <ChatAttachmentPicker
+              files={attachedFiles}
+              disabled={pending}
+              onChange={setAttachedFiles}
+              onError={(message) => setError(message || undefined)}
+            />
+            <div className="flex items-end gap-2">
+              <label className="flex-1">
+                <span className="sr-only">Message {bot.name}</span>
+                <textarea
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey) {
+                      event.preventDefault();
+                      void send();
+                    }
+                  }}
+                  placeholder="Ask about your attached files or permitted knowledge…"
+                  className="max-h-40 min-h-12 w-full resize-y rounded-xl border bg-slate-50 px-4 py-3 text-sm focus-visible:ring-2 focus-visible:ring-indigo-500"
+                />
+              </label>
+              <Button
+                type="submit"
+                disabled={pending || (!input.trim() && !attachedFiles.length)}
+                aria-label="Send message"
+              >
+                <ArrowUp size={18} />
+              </Button>
+            </div>
           </form>
           <p className="mt-2 text-center text-xs text-muted-foreground">
-            Answers are grounded in indexed sources. Verify important decisions
-            against the citation.
+            Attached files are read for this message only and are not added to
+            the Knowledge Base.
           </p>
         </div>
       </section>

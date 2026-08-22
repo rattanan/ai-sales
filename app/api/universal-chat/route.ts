@@ -1,7 +1,9 @@
 import { universalChatRequestSchema } from "@/schemas/knowledge";
 import { getAuthorizationContext } from "@/server/auth/authorization";
 import { chatStreamResponse } from "@/server/http/chat-stream-response";
+import { readChatRequest } from "@/server/http/chat-request";
 import { sendUniversalChatMessage } from "@/server/services/chat-service";
+import { ChatAttachmentRequestError } from "@/server/services/chat-attachment-service";
 
 export const maxDuration = 60;
 
@@ -9,9 +11,21 @@ export async function POST(request: Request) {
   const context = await getAuthorizationContext();
   if (!context)
     return Response.json({ error: "UNAUTHENTICATED" }, { status: 401 });
-  const parsed = universalChatRequestSchema.safeParse(
-    await request.json().catch(() => null),
-  );
+  let chatRequest: Awaited<ReturnType<typeof readChatRequest>>;
+  try {
+    chatRequest = await readChatRequest(request);
+  } catch (error) {
+    if (error instanceof ChatAttachmentRequestError)
+      return Response.json(
+        { error: error.code, message: error.message },
+        { status: error.status },
+      );
+    return Response.json(
+      { error: "VALIDATION_ERROR", message: "The chat request is invalid." },
+      { status: 400 },
+    );
+  }
+  const parsed = universalChatRequestSchema.safeParse(chatRequest.payload);
   if (!parsed.success)
     return Response.json(
       {
@@ -22,7 +36,11 @@ export async function POST(request: Request) {
     );
   try {
     return chatStreamResponse((onToken) =>
-      sendUniversalChatMessage(context, { ...parsed.data, onToken }),
+      sendUniversalChatMessage(context, {
+        ...parsed.data,
+        attachments: chatRequest.attachments,
+        onToken,
+      }),
     );
   } catch {
     return Response.json(
