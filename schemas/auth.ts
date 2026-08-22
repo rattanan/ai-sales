@@ -16,7 +16,6 @@ export const registerSchema = z.object({
 
 export const loginSchema = z.object({
   identifier: z.string().trim().min(3).max(254),
-  organization: z.string().trim().toLowerCase().max(100).optional(),
   password: z.string().min(1),
   rememberMe: z.preprocess(
     (value) => value === true || value === "on" || value === "true",

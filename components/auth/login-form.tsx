@@ -21,17 +21,6 @@ export function LoginForm() {
           required
         />
       </Field>
-      <Field
-        label="Organization (for external authentication)"
-        htmlFor="organization"
-      >
-        <Input
-          id="organization"
-          name="organization"
-          autoComplete="organization"
-          placeholder="organization-slug"
-        />
-      </Field>
       <div className="flex items-center justify-between gap-4 text-sm">
         <label className="flex min-h-11 cursor-pointer items-center gap-2">
           <input

@@ -21,7 +21,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         identifier: {},
         password: {},
         rememberMe: {},
-        organization: {},
       },
       async authorize(raw, request) {
         const parsed = loginSchema.safeParse(raw);
@@ -30,7 +29,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           parsed.data.identifier,
           parsed.data.password,
           request,
-          parsed.data.organization,
         );
         if (!authenticated) return null;
         const { user, loginHistoryId } = authenticated;

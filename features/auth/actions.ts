@@ -45,7 +45,6 @@ export async function loginAction(
       identifier: String(formData.get("identifier") ?? ""),
       password: String(formData.get("password") ?? ""),
       rememberMe: formData.get("rememberMe") === "on",
-      organization: String(formData.get("organization") ?? ""),
       redirect: false,
     });
     const session = await auth();
