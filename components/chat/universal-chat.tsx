@@ -479,34 +479,28 @@ export function UniversalChat({
           <p role="alert" className="mb-2 text-sm text-destructive">
             {error}
           </p>
-          <div className="mb-2 flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              aria-pressed={webSearch}
-              disabled={!webSearchAvailable || pending}
-              title={
-                webSearchAvailable
-                  ? "Search the live web for this message"
-                  : "Set WEB_SEARCH_API_KEY to enable web search"
-              }
-              onClick={() => setWebSearch((enabled) => !enabled)}
-              className={
-                webSearch ? "border-blue-500 bg-blue-50 text-blue-700" : ""
-              }
-            >
-              <Globe2 size={16} /> Web search
-            </Button>
-            {!webSearchAvailable ? (
-              <span className="text-xs text-muted-foreground">
-                Not configured
-              </span>
-            ) : webSearch ? (
-              <span className="text-xs text-blue-700">
-                Uses live web sources while enabled
-              </span>
-            ) : null}
-          </div>
+          {webSearchAvailable ? (
+            <div className="mb-2 flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                aria-pressed={webSearch}
+                disabled={pending}
+                title="Search the live web for this message"
+                onClick={() => setWebSearch((enabled) => !enabled)}
+                className={
+                  webSearch ? "border-blue-500 bg-blue-50 text-blue-700" : ""
+                }
+              >
+                <Globe2 size={16} /> Web search
+              </Button>
+              {webSearch ? (
+                <span className="text-xs text-blue-700">
+                  Uses live web sources while enabled
+                </span>
+              ) : null}
+            </div>
+          ) : null}
           <div className="flex gap-2">
             <textarea
               aria-label="Message AI-Sales"

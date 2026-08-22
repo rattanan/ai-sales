@@ -573,36 +573,30 @@ export function KnowledgeChat({
           <p aria-live="assertive" className="mb-2 text-sm text-destructive">
             {error}
           </p>
-          <div className="mx-auto mb-2 flex max-w-4xl items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              aria-pressed={webSearch}
-              disabled={!webSearchAvailable || pending}
-              title={
-                webSearchAvailable
-                  ? "Search the live web for this message"
-                  : "Set WEB_SEARCH_API_KEY to enable web search"
-              }
-              onClick={() => setWebSearch((enabled) => !enabled)}
-              className={
-                webSearch
-                  ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                  : ""
-              }
-            >
-              <Globe2 size={16} /> Web search
-            </Button>
-            {!webSearchAvailable ? (
-              <span className="text-xs text-muted-foreground">
-                Not configured
-              </span>
-            ) : webSearch ? (
-              <span className="text-xs text-indigo-700">
-                Uses live web sources while enabled
-              </span>
-            ) : null}
-          </div>
+          {webSearchAvailable ? (
+            <div className="mx-auto mb-2 flex max-w-4xl items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                aria-pressed={webSearch}
+                disabled={pending}
+                title="Search the live web for this message"
+                onClick={() => setWebSearch((enabled) => !enabled)}
+                className={
+                  webSearch
+                    ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                    : ""
+                }
+              >
+                <Globe2 size={16} /> Web search
+              </Button>
+              {webSearch ? (
+                <span className="text-xs text-indigo-700">
+                  Uses live web sources while enabled
+                </span>
+              ) : null}
+            </div>
+          ) : null}
           <form
             onSubmit={(event) => {
               event.preventDefault();

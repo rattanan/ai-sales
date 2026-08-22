@@ -149,7 +149,9 @@ export default async function ChatIndexPage({
           : undefined,
       }))}
       historyQuery={historyQuery}
-      webSearchAvailable={Boolean(env().WEB_SEARCH_API_KEY)}
+      webSearchAvailable={Boolean(
+        env().WEB_SEARCH_ENABLED && env().WEB_SEARCH_API_KEY,
+      )}
     />
   );
 }

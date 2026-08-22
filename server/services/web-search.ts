@@ -94,7 +94,7 @@ export async function searchWeb(
     configuration ??
     (() => {
       const environment = env();
-      if (!environment.WEB_SEARCH_API_KEY)
+      if (!environment.WEB_SEARCH_ENABLED || !environment.WEB_SEARCH_API_KEY)
         throw new Error("WEB_SEARCH_NOT_CONFIGURED");
       return {
         apiKey: environment.WEB_SEARCH_API_KEY,
