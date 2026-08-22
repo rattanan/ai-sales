@@ -46,7 +46,7 @@ export default async function HomePage() {
               Turn trusted knowledge into confident decisions.
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground">
-              InsightKM brings documents, databases, and business systems into
+              AI-Sales brings documents, databases, and business systems into
               one secure AI knowledge platform—with governed access and clear
               citations in every answer.
             </p>
@@ -65,7 +65,7 @@ export default async function HomePage() {
 
           <div
             className="relative rounded-[1.5rem] border bg-white p-4 shadow-[0_28px_80px_rgba(36,34,80,0.15)] sm:p-5"
-            aria-label="InsightKM product preview"
+            aria-label="AI-Sales product preview"
           >
             <div className="flex items-center gap-3 border-b pb-4">
               <span className="grid size-9 place-items-center rounded-xl bg-secondary text-primary">

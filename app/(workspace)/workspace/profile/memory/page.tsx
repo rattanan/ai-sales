@@ -55,7 +55,7 @@ export default async function UserMemoryPage() {
     <div className="space-y-6">
       <PageHeader
         title="My memory & consent"
-        description={`Control the preferences and organization context InsightKM may reuse. Active memories expire after ${retention?.memoryRetentionDays ?? 365} days and can be deleted immediately.`}
+        description={`Control the preferences and organization context AI-Sales may reuse. Active memories expire after ${retention?.memoryRetentionDays ?? 365} days and can be deleted immediately.`}
         action={
           <Button asChild>
             <Link href="/workspace/profile/memory/new">Add memory</Link>

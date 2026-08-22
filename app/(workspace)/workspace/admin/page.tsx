@@ -46,7 +46,7 @@ export default async function AdminDashboardPage() {
     <div className="space-y-6">
       <PageHeader
         title="Administration"
-        description="Identity, access, AI providers, privacy, and operational health for InsightKM."
+        description="Identity, access, AI providers, privacy, and operational health for AI-Sales."
       />
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {metrics.map(([label, value, href]) => (

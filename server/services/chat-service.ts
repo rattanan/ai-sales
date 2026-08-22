@@ -34,6 +34,10 @@ import {
   orchestrateNtopChat,
   type NtopChatOutcome,
 } from "@/server/services/ntop-chat-orchestrator";
+import {
+  searchWeb,
+  type WebSearchEvidence,
+} from "@/server/services/web-search";
 
 function isThai(value: string) {
   return /[\u0E00-\u0E7F]/.test(value);
@@ -474,6 +478,7 @@ export async function sendKnowledgeChatMessage(
       | "GENERATE_REPORT"
       | "QUERY_LIVE_DATA";
     sourceIds?: string[];
+    webSearch?: boolean;
     isUniversal?: boolean;
     onToken?: (token: string) => void | Promise<void>;
   },
@@ -594,19 +599,38 @@ export async function sendKnowledgeChatMessage(
       scopeConfig: {
         botId: bot.id,
         sourceIds: input.sourceIds ?? [],
+        webSearch: input.webSearch ?? false,
       },
     },
   });
-  const ntopOutcome: NtopChatOutcome = await orchestrateNtopChat(
-    context.userId,
-    input.message,
-  ).catch(() => ({
-    evidence: [],
-    toolUsed: true,
-    message: isThai(input.message)
-      ? "ไม่สามารถเชื่อมต่อ NTOP Business Memory ได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง"
-      : "NTOP Business Memory is currently unavailable. Please try again.",
-  }));
+  const privacyPolicyPromise = getEffectiveAiPrivacyPolicy(
+    context.organizationId,
+  );
+  const webSearchStartedAt = performance.now();
+  let webSearchEvidence: WebSearchEvidence[] = [];
+  let webSearchFailed = false;
+  if (input.webSearch) {
+    try {
+      const privacyPolicy = await privacyPolicyPromise;
+      webSearchEvidence = await searchWeb(
+        maskFreeText(input.message, privacyPolicy),
+      );
+    } catch {
+      webSearchFailed = true;
+    }
+  }
+  const webSearchDurationMs = Math.round(
+    performance.now() - webSearchStartedAt,
+  );
+  const ntopOutcome: NtopChatOutcome = input.webSearch
+    ? { evidence: [], toolUsed: false }
+    : await orchestrateNtopChat(context.userId, input.message).catch(() => ({
+        evidence: [],
+        toolUsed: true,
+        message: isThai(input.message)
+          ? "ไม่สามารถเชื่อมต่อ NTOP Business Memory ได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง"
+          : "NTOP Business Memory is currently unavailable. Please try again.",
+      }));
   const startedAt = performance.now();
   let databaseQuestion = input.message;
   let databaseQueryConfirmed = false;
@@ -661,7 +685,7 @@ export async function sendKnowledgeChatMessage(
     ? (scope as "CONVERSATION_HISTORY" | "BUSINESS_INSIGHT")
     : null;
   const [retrievedEvidence, memory, privacyPolicy] = await Promise.all([
-    databaseAnswer || legacyApiAnswer
+    input.webSearch || databaseAnswer || legacyApiAnswer
       ? Promise.resolve([] as GroundingEvidence[])
       : ntopOutcome.action || ntopOutcome.message
         ? Promise.resolve([] as GroundingEvidence[])
@@ -688,9 +712,10 @@ export async function sendKnowledgeChatMessage(
       memoryMode: bot.providerConfig?.memoryMode ?? "CONVERSATION",
       excludeMessageId: userMessage.id,
     }),
-    getEffectiveAiPrivacyPolicy(context.organizationId),
+    privacyPolicyPromise,
   ]);
   const evidence = [
+    ...webSearchEvidence,
     ...ntopOutcome.evidence,
     ...retrievedEvidence,
   ] as GroundingEvidence[];
@@ -706,7 +731,21 @@ export async function sendKnowledgeChatMessage(
     emittedToken = true;
     await input.onToken(token);
   };
-  if (ntopOutcome.action) {
+  if (input.webSearch && webSearchFailed) {
+    answer = {
+      content: isThai(input.message)
+        ? "ไม่สามารถค้นหาเว็บได้ในขณะนี้ กรุณาตรวจสอบการตั้งค่า Web Search หรือลองใหม่อีกครั้ง"
+        : "Web search is currently unavailable. Check the Web Search configuration or try again.",
+    };
+    errorCode = "WEB_SEARCH_ERROR";
+  } else if (input.webSearch && !webSearchEvidence.length) {
+    answer = {
+      content: isThai(input.message)
+        ? "ไม่พบผลลัพธ์ที่เกี่ยวข้องจากการค้นหาเว็บ กรุณาลองปรับคำค้นหา"
+        : "No relevant web results were found. Try refining your search.",
+    };
+    errorCode = "NO_WEB_RESULTS";
+  } else if (ntopOutcome.action) {
     answer = {
       content: isThai(input.message)
         ? `${ntopOutcome.action.summary}\n\nกรุณาตรวจสอบข้อมูลและกดปุ่มยืนยันก่อนบันทึกลง NTOP ระบบจะไม่สร้าง Record โดยอัตโนมัติ`
@@ -765,6 +804,7 @@ export async function sendKnowledgeChatMessage(
         scopeConfig: {
           botId: bot.id,
           sourceIds: input.sourceIds ?? [],
+          webSearch: input.webSearch ?? false,
           ...(databaseAnswer?.confirmationQuestion
             ? {
                 databaseQueryConfirmation: true,
@@ -837,55 +877,73 @@ export async function sendKnowledgeChatMessage(
               })),
             }
           : undefined,
-        toolTraces: databaseAnswer?.queryId
+        toolTraces: input.webSearch
           ? {
               create: {
-                toolType: "DATABASE",
-                toolId: databaseAnswer.queryId,
-                status: databaseAnswer.failed ? "FAILED" : "COMPLETED",
+                toolType: "WEB_SEARCH",
+                status: webSearchFailed ? "FAILED" : "COMPLETED",
                 maskedInput: {
-                  question: maskFreeText(input.message, privacyPolicy),
+                  query: maskFreeText(input.message, privacyPolicy),
                 },
-                maskedOutput: (databaseAnswer.citation ?? {
-                  result: "bounded summary",
-                }) as Prisma.InputJsonValue,
-                errorCode: databaseAnswer.failed
-                  ? "DATABASE_QUERY_ERROR"
-                  : null,
+                maskedOutput: {
+                  resultCount: webSearchEvidence.length,
+                  urls: webSearchEvidence.map((item) => item.metadata.url),
+                },
+                durationMs: webSearchDurationMs,
+                errorCode: webSearchFailed ? "WEB_SEARCH_ERROR" : null,
               },
             }
-          : legacyApiAnswer?.invocationId
+          : databaseAnswer?.queryId
             ? {
                 create: {
-                  toolType: "API_TOOL",
-                  toolId: legacyApiAnswer.invocationId,
-                  status: legacyApiAnswer.failed ? "FAILED" : "COMPLETED",
+                  toolType: "DATABASE",
+                  toolId: databaseAnswer.queryId,
+                  status: databaseAnswer.failed ? "FAILED" : "COMPLETED",
                   maskedInput: {
                     question: maskFreeText(input.message, privacyPolicy),
                   },
-                  maskedOutput: (legacyApiAnswer.citation ?? {
+                  maskedOutput: (databaseAnswer.citation ?? {
                     result: "bounded summary",
                   }) as Prisma.InputJsonValue,
-                  errorCode: legacyApiAnswer.failed ? "LEGACY_API_ERROR" : null,
+                  errorCode: databaseAnswer.failed
+                    ? "DATABASE_QUERY_ERROR"
+                    : null,
                 },
               }
-            : ntopOutcome.toolUsed
+            : legacyApiAnswer?.invocationId
               ? {
                   create: {
-                    toolType: ntopOutcome.action
-                      ? "NTOP_WRITE_PROPOSAL"
-                      : "NTOP_READ",
-                    status: "COMPLETED",
+                    toolType: "API_TOOL",
+                    toolId: legacyApiAnswer.invocationId,
+                    status: legacyApiAnswer.failed ? "FAILED" : "COMPLETED",
                     maskedInput: {
                       question: maskFreeText(input.message, privacyPolicy),
                     },
-                    maskedOutput: {
-                      recordCount: ntopOutcome.evidence.length,
-                      proposedAction: ntopOutcome.action?.type ?? null,
-                    },
+                    maskedOutput: (legacyApiAnswer.citation ?? {
+                      result: "bounded summary",
+                    }) as Prisma.InputJsonValue,
+                    errorCode: legacyApiAnswer.failed
+                      ? "LEGACY_API_ERROR"
+                      : null,
                   },
                 }
-              : undefined,
+              : ntopOutcome.toolUsed
+                ? {
+                    create: {
+                      toolType: ntopOutcome.action
+                        ? "NTOP_WRITE_PROPOSAL"
+                        : "NTOP_READ",
+                      status: "COMPLETED",
+                      maskedInput: {
+                        question: maskFreeText(input.message, privacyPolicy),
+                      },
+                      maskedOutput: {
+                        recordCount: ntopOutcome.evidence.length,
+                        proposedAction: ntopOutcome.action?.type ?? null,
+                      },
+                    },
+                  }
+                : undefined,
       },
       include: { citations: true },
     });
@@ -944,22 +1002,29 @@ export async function sendKnowledgeChatMessage(
         quote: citation.quote,
         metadata: citation.metadata,
       })),
-      toolActivity: databaseAnswer?.queryId
+      toolActivity: input.webSearch
         ? {
-            type: "DATABASE",
-            status: databaseAnswer.failed ? "FAILED" : "COMPLETED",
+            type: "WEB_SEARCH",
+            status: webSearchFailed ? "FAILED" : "COMPLETED",
           }
-        : legacyApiAnswer?.invocationId
+        : databaseAnswer?.queryId
           ? {
-              type: "API_TOOL",
-              status: legacyApiAnswer.failed ? "FAILED" : "COMPLETED",
+              type: "DATABASE",
+              status: databaseAnswer.failed ? "FAILED" : "COMPLETED",
             }
-          : ntopOutcome.toolUsed
+          : legacyApiAnswer?.invocationId
             ? {
-                type: ntopOutcome.action ? "NTOP_WRITE_PROPOSAL" : "NTOP_READ",
-                status: "COMPLETED",
+                type: "API_TOOL",
+                status: legacyApiAnswer.failed ? "FAILED" : "COMPLETED",
               }
-            : undefined,
+            : ntopOutcome.toolUsed
+              ? {
+                  type: ntopOutcome.action
+                    ? "NTOP_WRITE_PROPOSAL"
+                    : "NTOP_READ",
+                  status: "COMPLETED",
+                }
+              : undefined,
       suggestedAction: completedTurn.action
         ? {
             id: completedTurn.action.id,
@@ -1022,6 +1087,7 @@ export async function sendUniversalChatMessage(
       | "GENERATE_REPORT"
       | "QUERY_LIVE_DATA";
     sourceIds: string[];
+    webSearch?: boolean;
     onToken?: (token: string) => void | Promise<void>;
   },
 ) {
@@ -1075,6 +1141,7 @@ export async function sendUniversalChatMessage(
     scope: input.scope,
     mode: input.mode,
     sourceIds: input.sourceIds,
+    webSearch: input.webSearch,
     isUniversal: true,
     authMode: context.authMode ?? "LOCAL",
     onToken: input.onToken,

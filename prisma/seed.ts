@@ -209,13 +209,13 @@ async function main() {
     },
     update: {
       active: true,
-      description: "Default governed document collection for InsightKM.",
+      description: "Default governed document collection for AI-Sales.",
     },
     create: {
       organizationId: organization.id,
       createdById: user.id,
       name: "General Knowledge",
-      description: "Default governed document collection for InsightKM.",
+      description: "Default governed document collection for AI-Sales.",
     },
   });
   await prisma.knowledgeSource.upsert({
@@ -254,7 +254,7 @@ async function main() {
     where: {
       organizationId_name: {
         organizationId: organization.id,
-        name: "InsightKM Assistant",
+        name: "AI-Sales Assistant",
       },
     },
     update: {
@@ -273,10 +273,10 @@ async function main() {
     create: {
       organizationId: organization.id,
       createdById: user.id,
-      name: "InsightKM Assistant",
+      name: "AI-Sales Assistant",
       description: "Answers from governed organizational knowledge.",
       systemPrompt:
-        "Answer only from the governed evidence provided by InsightKM. Be concise, preserve the user's language, and state clearly when evidence is insufficient.",
+        "Answer only from the governed evidence provided by AI-Sales. Be concise, preserve the user's language, and state clearly when evidence is insufficient.",
       welcomeMessage:
         "สวัสดีครับ ถามข้อมูลจากเอกสารที่คุณมีสิทธิ์เข้าถึงได้เลย",
       suggestedQuestions: [

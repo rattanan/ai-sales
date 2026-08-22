@@ -46,6 +46,16 @@ services:
       - mkdir -p /app/.data/uploads && chown -R 1001:1001 /app/.data/uploads && chmod 0770 /app/.data/uploads
     volumes: ["uploads-data:/app/.data/uploads"]
     restart: "no"
+  migrate:
+    profiles: ["app"]
+    build:
+      context: .
+      target: migrator
+    environment:
+      DATABASE_URL: postgresql://ai_dashboard:ai_dashboard@postgres:5432/ai_dashboard?schema=public
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
   worker:
     build:
       context: .

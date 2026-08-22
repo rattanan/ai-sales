@@ -16,7 +16,7 @@ export default async function RegisterPage() {
       <CardHeader className="pb-5">
         <CardTitle className="text-2xl">Registration is disabled</CardTitle>
         <CardDescription>
-          InsightKM uses administrator-managed enterprise accounts.
+          AI-Sales uses administrator-managed enterprise accounts.
         </CardDescription>
       </CardHeader>
       <CardContent>

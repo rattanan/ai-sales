@@ -41,7 +41,7 @@ export function NtopConnectionForm({
         />
       </Field>
       <p id="ntop-api-key-help" className="text-sm text-muted-foreground">
-        Stored encrypted and used only by the InsightKM backend. Replacing it
+        Stored encrypted and used only by the AI-Sales backend. Replacing it
         changes the identity used for future NTOP Chat actions.
       </p>
       {state ? (

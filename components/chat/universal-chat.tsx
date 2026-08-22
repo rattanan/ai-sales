@@ -9,6 +9,7 @@ import {
   Database,
   Download,
   FileText,
+  Globe2,
   LoaderCircle,
   MessageSquarePlus,
   PlugZap,
@@ -31,7 +32,7 @@ type Message = {
     id: string;
     rank: number;
     quote: string;
-    metadata: unknown;
+    metadata: Record<string, unknown> | null;
   }>;
   toolActivity?: { type: string; status: string };
   rating?: number | null;
@@ -70,6 +71,7 @@ export function UniversalChat({
   selectedConversationId,
   initialMessages,
   historyQuery,
+  webSearchAvailable = false,
 }: {
   bots: Array<{ id: string; name: string }>;
   sources: Array<{ id: string; name: string; type: string }>;
@@ -82,6 +84,7 @@ export function UniversalChat({
   selectedConversationId?: string;
   initialMessages: Message[];
   historyQuery: string;
+  webSearchAvailable?: boolean;
 }) {
   const router = useRouter();
   const [scope, setScope] = useState<Scope>("SMART");
@@ -94,6 +97,7 @@ export function UniversalChat({
   const [pending, setPending] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState("");
+  const [webSearch, setWebSearch] = useState(false);
   const showBot = scope === "SPECIFIC_BOT";
   const showSources = scope === "SPECIFIC_SOURCES";
   const selectedSources = useMemo(() => new Set(sourceIds), [sourceIds]);
@@ -109,6 +113,7 @@ export function UniversalChat({
     setPending(false);
     setStreaming(false);
     setError("");
+    setWebSearch(false);
   }
 
   async function send() {
@@ -148,6 +153,7 @@ export function UniversalChat({
           mode,
           botId: showBot ? botId : undefined,
           sourceIds: showSources ? sourceIds : [],
+          webSearch,
         }),
       });
       const payload = await readChatStream<ChatTurnResult>(response, {
@@ -419,6 +425,19 @@ export function UniversalChat({
                       <li key={citation.id} className="rounded bg-muted p-2">
                         <span className="font-medium">[{citation.rank}]</span>{" "}
                         {citation.quote}
+                        {typeof citation.metadata?.url === "string" ? (
+                          <a
+                            href={citation.metadata.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-2 flex items-center gap-1 font-medium text-primary underline"
+                          >
+                            <Globe2 size={13} />
+                            {typeof citation.metadata.title === "string"
+                              ? citation.metadata.title
+                              : "Open web source"}
+                          </a>
+                        ) : null}
                       </li>
                     ))}
                   </ol>
@@ -460,9 +479,37 @@ export function UniversalChat({
           <p role="alert" className="mb-2 text-sm text-destructive">
             {error}
           </p>
+          <div className="mb-2 flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              aria-pressed={webSearch}
+              disabled={!webSearchAvailable || pending}
+              title={
+                webSearchAvailable
+                  ? "Search the live web for this message"
+                  : "Set WEB_SEARCH_API_KEY to enable web search"
+              }
+              onClick={() => setWebSearch((enabled) => !enabled)}
+              className={
+                webSearch ? "border-blue-500 bg-blue-50 text-blue-700" : ""
+              }
+            >
+              <Globe2 size={16} /> Web search
+            </Button>
+            {!webSearchAvailable ? (
+              <span className="text-xs text-muted-foreground">
+                Not configured
+              </span>
+            ) : webSearch ? (
+              <span className="text-xs text-blue-700">
+                Uses live web sources while enabled
+              </span>
+            ) : null}
+          </div>
           <div className="flex gap-2">
             <textarea
-              aria-label="Message InsightKM"
+              aria-label="Message AI-Sales"
               value={message}
               onChange={(event) => setMessage(event.target.value)}
               onKeyDown={(event) => {
@@ -471,7 +518,7 @@ export function UniversalChat({
                   void send();
                 }
               }}
-              placeholder="Ask InsightKM…"
+              placeholder="Ask AI-Sales…"
               rows={2}
               className="min-h-12 flex-1 resize-none rounded-xl border bg-background p-3 text-sm"
             />

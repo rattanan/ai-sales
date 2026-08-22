@@ -137,7 +137,7 @@ export class MsSqlConnector implements DataConnector {
       currentUser: result.data[0]?.currentUser,
       currentSchema: result.data[0]?.currentSchema,
       compatibilityWarning:
-        "Use a SQL Server login with SELECT-only grants. InsightKM blocks non-read-only syntax at the connector boundary.",
+        "Use a SQL Server login with SELECT-only grants. AI-Sales blocks non-read-only syntax at the connector boundary.",
     });
   }
 

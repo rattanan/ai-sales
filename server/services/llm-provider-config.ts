@@ -136,7 +136,7 @@ export async function testLlmProvider(
         },
         body: JSON.stringify({
           model: provider.embeddingModel,
-          input: "InsightKM health check",
+          input: "AI-Sales health check",
         }),
         signal: AbortSignal.timeout(Math.min(provider.timeoutMs, 10_000)),
       },

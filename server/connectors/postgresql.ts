@@ -137,7 +137,7 @@ export class PostgreSqlConnector implements DataConnector {
       compatibilityWarning:
         row?.read_only === "on"
           ? undefined
-          : "The account is not database-level read-only. InsightKM still enforces a read-only transaction and SQL guard, but a read-only database role is strongly recommended.",
+          : "The account is not database-level read-only. AI-Sales still enforces a read-only transaction and SQL guard, but a read-only database role is strongly recommended.",
     });
   }
 

@@ -20,7 +20,7 @@ export function InsightKmWordmark({ compact = false }: { compact?: boolean }) {
   return (
     <span className="min-w-0 leading-none">
       <span className="block text-[15px] font-bold tracking-[-0.02em] text-foreground">
-        Insight<span className="text-primary">KM</span>
+        <span className="text-primary">AI</span>-Sales
       </span>
       {!compact ? (
         <span className="mt-1 block text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">

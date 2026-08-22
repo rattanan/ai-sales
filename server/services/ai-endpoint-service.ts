@@ -329,7 +329,7 @@ export async function testAiEndpoint(
             }
           : {
               model: endpoint.model,
-              input: "InsightKM embedding health check",
+              input: "AI-Sales embedding health check",
             },
       ),
       signal: AbortSignal.timeout(endpoint.timeoutMs),

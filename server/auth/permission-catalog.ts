@@ -50,7 +50,7 @@ export const SYSTEM_ROLES: Record<
 > = {
   ADMIN: {
     name: "Admin",
-    description: "InsightKM tenant administration with full access.",
+    description: "AI-Sales tenant administration with full access.",
     permissions: PERMISSIONS,
   },
   MANAGER: {

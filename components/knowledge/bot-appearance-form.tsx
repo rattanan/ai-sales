@@ -551,7 +551,7 @@ export function BotAppearanceForm({ bot }: { bot: AppearanceValue }) {
               checked={brandingEnabled}
               onChange={(event) => setBrandingEnabled(event.target.checked)}
             />
-            {t("Show “Powered by InsightKM” branding")}
+            {t("Show “Powered by AI-Sales” branding")}
           </label>
         </fieldset>
 
@@ -631,7 +631,7 @@ export function BotAppearanceForm({ bot }: { bot: AppearanceValue }) {
                   <p className="truncate text-sm font-semibold">{bot.name}</p>
                   {brandingEnabled ? (
                     <p className="text-[11px] opacity-75">
-                      Powered by InsightKM
+                      Powered by AI-Sales
                     </p>
                   ) : null}
                 </div>

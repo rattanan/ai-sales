@@ -16,7 +16,7 @@ export default async function DataSourcesPage() {
     <div className="space-y-7">
       <PageHeader
         title="Knowledge sources"
-        description="Manage governed databases and files that ground InsightKM answers and business insights."
+        description="Manage governed databases and files that ground AI-Sales answers and business insights."
         action={
           <Button asChild>
             <Link href="/workspace/data-sources/new">

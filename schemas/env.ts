@@ -90,6 +90,15 @@ export const envSchema = z.object({
     .max(60_000)
     .default(15_000),
   KNOWLEDGE_WEB_MAX_REDIRECTS: z.coerce.number().int().min(0).max(5).default(3),
+  WEB_SEARCH_API_KEY: z.string().min(1).optional(),
+  WEB_SEARCH_BASE_URL: z.string().url().default("https://api.tavily.com"),
+  WEB_SEARCH_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(1_000)
+    .max(60_000)
+    .default(15_000),
+  WEB_SEARCH_MAX_RESULTS: z.coerce.number().int().min(1).max(10).default(5),
   EMBEDDING_BASE_URL: z
     .string()
     .url()

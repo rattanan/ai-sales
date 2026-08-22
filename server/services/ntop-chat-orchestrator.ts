@@ -180,7 +180,7 @@ export async function orchestrateNtopChat(
             competitors: null,
             approach: "DIRECT",
             confidence: 50,
-            rationale: "Created from user-confirmed InsightKM conversation",
+            rationale: "Created from user-confirmed AI-Sales conversation",
           },
         },
       },

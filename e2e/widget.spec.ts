@@ -62,8 +62,8 @@ test("signed sample host opens the widget, chats, and reconnects on mobile", asy
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(hostOrigin);
-    await page.getByRole("button", { name: "Open InsightKM chat" }).click();
-    const frame = page.frameLocator(`iframe[title="InsightKM secure chat"]`);
+    await page.getByRole("button", { name: "Open AI-Sales chat" }).click();
+    const frame = page.frameLocator(`iframe[title="AI-Sales secure chat"]`);
     await expect(frame.getByRole("status")).toHaveText("Secure session ready");
     await expect(
       frame.getByText("Welcome to the secure widget."),
@@ -75,9 +75,9 @@ test("signed sample host opens the widget, chats, and reconnects on mobile", asy
     ).toBeVisible();
 
     await page.reload();
-    await page.getByRole("button", { name: "Open InsightKM chat" }).click();
+    await page.getByRole("button", { name: "Open AI-Sales chat" }).click();
     const reconnected = page.frameLocator(
-      `iframe[title="InsightKM secure chat"]`,
+      `iframe[title="AI-Sales secure chat"]`,
     );
     await expect(reconnected.getByRole("status")).toHaveText(
       "Secure session ready",

@@ -42,7 +42,7 @@ export default async function BotSelectionPage() {
   return (
     <div className="space-y-7">
       <PageHeader
-        title="Ask InsightKM"
+        title="Ask AI-Sales"
         description="Choose an assistant. Every answer is grounded in knowledge you are allowed to access."
       />
       <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">

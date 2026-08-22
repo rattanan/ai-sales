@@ -3,6 +3,7 @@ import { KnowledgeChat } from "@/components/chat/knowledge-chat";
 import { requireAuthorization } from "@/server/auth/authorization";
 import { requireBotUse } from "@/server/auth/knowledge-access";
 import { db } from "@/server/db";
+import { env } from "@/schemas/env";
 
 function stringQuestions(value: unknown) {
   return Array.isArray(value)
@@ -140,6 +141,7 @@ export default async function KnowledgeChatPage({
         })),
       }))}
       projects={membership?.projects.map(({ project }) => project) ?? []}
+      webSearchAvailable={Boolean(env().WEB_SEARCH_API_KEY)}
     />
   );
 }

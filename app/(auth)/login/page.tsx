@@ -15,7 +15,7 @@ export default async function LoginPage() {
   return (
     <Card>
       <CardHeader className="pb-5">
-        <CardTitle className="text-2xl">Welcome to InsightKM</CardTitle>
+        <CardTitle className="text-2xl">Welcome to AI-Sales</CardTitle>
         <CardDescription>
           Sign in to access your organization&apos;s trusted knowledge.
         </CardDescription>

@@ -17,7 +17,7 @@ export default function GlobalError({
             padding: 24,
           }}
         >
-          <h1>InsightKM could not start</h1>
+          <h1>AI-Sales could not start</h1>
           <p>Please check the application configuration and try again.</p>
           <button
             onClick={() => unstable_retry()}

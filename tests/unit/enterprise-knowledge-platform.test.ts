@@ -70,6 +70,21 @@ describe("enterprise chat and source contracts", () => {
       }).success,
     ).toBe(true);
     expect(
+      universalChatRequestSchema.parse({
+        ...base,
+        scope: "SMART",
+        sourceIds: [],
+      }).webSearch,
+    ).toBe(false);
+    expect(
+      universalChatRequestSchema.parse({
+        ...base,
+        scope: "SMART",
+        sourceIds: [],
+        webSearch: true,
+      }).webSearch,
+    ).toBe(true);
+    expect(
       universalChatRequestSchema.safeParse({
         ...base,
         scope: "ALL_ACCESSIBLE",

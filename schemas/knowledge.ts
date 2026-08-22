@@ -204,6 +204,7 @@ export const chatRequestSchema = z.object({
   conversationId: z.string().min(1).optional(),
   projectId: z.string().min(1).optional(),
   message: z.string().trim().min(1).max(8_000),
+  webSearch: z.boolean().default(false),
 });
 
 export const universalChatRequestSchema = z
@@ -232,6 +233,7 @@ export const universalChatRequestSchema = z
       "QUERY_LIVE_DATA",
     ]),
     sourceIds: z.array(z.string().min(1)).max(100).default([]),
+    webSearch: z.boolean().default(false),
   })
   .superRefine((value, context) => {
     if (value.scope === "SPECIFIC_BOT" && !value.botId)

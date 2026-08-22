@@ -168,7 +168,7 @@ function WorkspaceShellContent({
         <footer className="border-t bg-white/70 px-5 py-4 text-xs text-muted-foreground sm:px-7 lg:px-9">
           <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <p>
-              © {new Date().getFullYear()} InsightKM.{" "}
+              © {new Date().getFullYear()} AI-Sales.{" "}
               {t("All rights reserved.")}
             </p>
             <p>

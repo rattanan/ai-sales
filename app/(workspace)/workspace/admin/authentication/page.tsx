@@ -104,7 +104,7 @@ export default async function AuthenticationAdminPage() {
             <div key={bot.id} className="space-y-2">
               <p className="text-sm font-medium">{bot.name}</p>
               <pre className="overflow-x-auto rounded-lg bg-black/40 p-4 text-xs">
-                <code>{`<script src="https://YOUR-INSIGHTKM-HOST/widget/v1.js"></script>\n<script>\n  InsightKMWidget.init({\n    botId: "${bot.id}",\n    apiBase: "https://YOUR-INSIGHTKM-HOST",\n    hostOrigin: window.location.origin,\n    payload: SIGNED_PAYLOAD_FROM_YOUR_SERVER,\n    signature: SIGNATURE_FROM_YOUR_SERVER\n  });\n</script>`}</code>
+                <code>{`<script src="https://YOUR-AI-SALES-HOST/widget/v1.js"></script>\n<script>\n  AISalesWidget.init({\n    botId: "${bot.id}",\n    apiBase: "https://YOUR-AI-SALES-HOST",\n    hostOrigin: window.location.origin,\n    payload: SIGNED_PAYLOAD_FROM_YOUR_SERVER,\n    signature: SIGNATURE_FROM_YOUR_SERVER\n  });\n</script>`}</code>
               </pre>
             </div>
           ))

@@ -37,7 +37,7 @@ function renderChat() {
         {
           id: "conversation-1",
           title: "Existing conversation",
-          botName: "InsightKM Assistant",
+          botName: "AI-Sales Assistant",
           lastMessageAt: "2026-08-19T01:00:00.000Z",
         },
       ]}
@@ -123,7 +123,7 @@ describe("universal chat navigation", () => {
       />,
     );
 
-    fireEvent.change(screen.getByPlaceholderText("Ask InsightKM…"), {
+    fireEvent.change(screen.getByPlaceholderText("Ask AI-Sales…"), {
       target: { value: "Hello" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Send message" }));

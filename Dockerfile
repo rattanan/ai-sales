@@ -3,6 +3,12 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
+FROM dependencies AS migrator
+WORKDIR /app
+COPY prisma.config.ts ./
+COPY prisma ./prisma
+CMD ["npx", "prisma", "migrate", "deploy"]
+
 FROM node:22-alpine AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1

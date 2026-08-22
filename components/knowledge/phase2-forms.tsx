@@ -499,7 +499,7 @@ export function BotConfigurationForm({
           type="checkbox"
           defaultChecked={bot?.brandingEnabled ?? true}
         />{" "}
-        InsightKM branding enabled
+        AI-Sales branding enabled
       </label>
       <label className="flex min-h-11 items-center gap-2 text-sm">
         <input

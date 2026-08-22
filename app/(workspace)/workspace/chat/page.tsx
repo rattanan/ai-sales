@@ -5,6 +5,13 @@ import { requirePermission } from "@/server/auth/permissions";
 import { requireBotUse } from "@/server/auth/knowledge-access";
 import { db } from "@/server/db";
 import { authorizeResource } from "@/server/auth/resource-authorization";
+import { env } from "@/schemas/env";
+
+function citationMetadata(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
 
 export const metadata = { title: "Universal Chat" };
 
@@ -120,7 +127,7 @@ export default async function ChatIndexPage({
           id: citation.id,
           rank: citation.rank,
           quote: citation.quote,
-          metadata: citation.metadata,
+          metadata: citationMetadata(citation.metadata),
         })),
         toolActivity: message.toolTraces[0]
           ? {
@@ -142,6 +149,7 @@ export default async function ChatIndexPage({
           : undefined,
       }))}
       historyQuery={historyQuery}
+      webSearchAvailable={Boolean(env().WEB_SEARCH_API_KEY)}
     />
   );
 }

@@ -265,7 +265,7 @@ export default async function WorkspacePage() {
 
         <Card className="overflow-hidden">
           <div className="border-b px-5 py-4 sm:px-6">
-            <h2 className="font-semibold">InsightKM foundation</h2>
+            <h2 className="font-semibold">AI-Sales foundation</h2>
             <p className="mt-1 text-xs text-muted-foreground">
               Enterprise controls already active
             </p>

@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: { default: "InsightKM", template: "%s · InsightKM" },
+  title: { default: "AI-Sales", template: "%s · AI-Sales" },
   description:
     "Secure enterprise knowledge, governed AI assistants, and business insight in one platform.",
 };
