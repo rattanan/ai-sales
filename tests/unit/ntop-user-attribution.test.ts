@@ -9,6 +9,7 @@ describe("NTOP per-user attribution", () => {
   const credentialService = read("server/services/ntop-credential-service.ts");
   const actionService = read("server/services/ntop-action-service.ts");
   const orchestrator = read("server/services/ntop-chat-orchestrator.ts");
+  const client = read("server/integrations/ntop/client.ts");
   const chat = read("server/services/chat-service.ts");
 
   it("stores the personal key as an authenticated encrypted envelope", () => {
@@ -21,13 +22,26 @@ describe("NTOP per-user attribution", () => {
 
   it("binds reads and writes to the authenticated InsightKM user", () => {
     expect(chat).toContain("context.userId,\n    input.message");
-    expect(orchestrator).toContain("configuredNtopClientForUser(userId");
+    expect(orchestrator).toContain("configuredNtopConnectionForUser(userId");
     expect(actionService).toContain(
       "configuredNtopClientForUser(context.userId)",
     );
     expect(actionService).not.toContain(
       "configuredNtopClientForUser(context.userId, { allowLegacyKey: true })",
     );
+  });
+
+  it("does not suggest an NTOP write without a personal user key", () => {
+    expect(client).toContain("credentialSource: personalApiKey");
+    expect(client).toContain('("USER" as const)');
+    const lookup = orchestrator.indexOf('intent.intent === "LOOKUP"');
+    const personalKeyGate = orchestrator.indexOf(
+      'connection.credentialSource !== "USER"',
+    );
+    const firstAction = orchestrator.indexOf("action: {");
+    expect(lookup).toBeGreaterThan(-1);
+    expect(personalKeyGate).toBeGreaterThan(lookup);
+    expect(firstAction).toBeGreaterThan(personalKeyGate);
   });
 
   it("keeps a pending action retryable when a personal key is missing", () => {

@@ -1,5 +1,5 @@
 import type { NtopActionType } from "@/generated/prisma/client";
-import { configuredNtopClientForUser } from "@/server/integrations/ntop/client";
+import { configuredNtopConnectionForUser } from "@/server/integrations/ntop/client";
 import { detectNtopSalesIntent } from "@/server/services/ntop-intent-service";
 
 type RecordValue = Record<string, unknown>;
@@ -75,10 +75,11 @@ export async function orchestrateNtopChat(
   userId: string,
   message: string,
 ): Promise<NtopChatOutcome> {
-  const client = await configuredNtopClientForUser(userId, {
+  const connection = await configuredNtopConnectionForUser(userId, {
     allowLegacyKey: true,
   });
-  if (!client) return { evidence: [], toolUsed: false };
+  if (!connection) return { evidence: [], toolUsed: false };
+  const { client } = connection;
   const intent = await detectNtopSalesIntent(message);
   if (intent.intent === "NONE" || !intent.company)
     return { evidence: [], toolUsed: false };
@@ -114,6 +115,12 @@ export async function orchestrateNtopChat(
         : {}),
     };
   }
+
+  if (connection.credentialSource !== "USER")
+    return {
+      evidence: evidence(combined, intent.company),
+      toolUsed: true,
+    };
 
   const existingOpportunity = (opportunities as RecordValue[]).find((item) =>
     exactCompany(item, intent.company!),

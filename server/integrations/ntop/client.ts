@@ -176,16 +176,31 @@ export async function configuredNtopClientForUser(
   userId: string,
   options: { allowLegacyKey?: boolean } = {},
 ) {
+  return (
+    (await configuredNtopConnectionForUser(userId, options))?.client ?? null
+  );
+}
+
+export async function configuredNtopConnectionForUser(
+  userId: string,
+  options: { allowLegacyKey?: boolean } = {},
+) {
   const configuration = env();
   if (!configuration.NTOP_API_URL) return null;
+  const personalApiKey = await userNtopApiKey(userId);
   const apiKey =
-    (await userNtopApiKey(userId)) ||
+    personalApiKey ||
     (options.allowLegacyKey ? configuration.NTOP_API_KEY : undefined);
   return apiKey
-    ? new NtopClient(
-        configuration.NTOP_API_URL,
-        apiKey,
-        configuration.NTOP_API_TIMEOUT_MS,
-      )
+    ? {
+        client: new NtopClient(
+          configuration.NTOP_API_URL,
+          apiKey,
+          configuration.NTOP_API_TIMEOUT_MS,
+        ),
+        credentialSource: personalApiKey
+          ? ("USER" as const)
+          : ("LEGACY" as const),
+      }
     : null;
 }
