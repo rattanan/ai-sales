@@ -7,6 +7,13 @@ const environmentBoolean = z.preprocess((value) => {
   return value;
 }, z.boolean());
 
+const optionalEnvironmentString = <T extends z.ZodType>(schema: T) =>
+  z.preprocess(
+    (value) =>
+      typeof value === "string" && value.trim() === "" ? undefined : value,
+    schema.optional(),
+  );
+
 export const envSchema = z.object({
   DATABASE_URL: z.string().url(),
   AUTH_SECRET: z.string().min(32),
@@ -170,8 +177,8 @@ export const envSchema = z.object({
     .default(12),
   AI_MAX_WIDGETS: z.coerce.number().int().min(1).max(50).default(12),
   AI_MAX_INSIGHTS: z.coerce.number().int().min(0).max(50).default(8),
-  NTOP_API_URL: z.string().url().optional(),
-  NTOP_API_KEY: z.string().min(16).optional(),
+  NTOP_API_URL: optionalEnvironmentString(z.string().url()),
+  NTOP_API_KEY: optionalEnvironmentString(z.string().min(16)),
   NTOP_API_TIMEOUT_MS: z.coerce
     .number()
     .int()

@@ -103,12 +103,16 @@ describe("application schemas", () => {
       AI_MASK_SENSITIVE_DATA: "true",
       AI_MAX_TABLES: "12",
       QUERY_MAX_ROWS: "500",
+      NTOP_API_URL: "",
+      NTOP_API_KEY: "",
     });
     expect(result.AI_SEND_SAMPLE_DATA).toBe(false);
     expect(result.AI_MASK_SENSITIVE_DATA).toBe(true);
     expect(result.AI_MAX_TABLES).toBe(12);
     expect(result.QUERY_MAX_ROWS).toBe(500);
     expect(result.AI_STREAM_INACTIVITY_TIMEOUT_MS).toBe(180_000);
+    expect(result.NTOP_API_URL).toBeUndefined();
+    expect(result.NTOP_API_KEY).toBeUndefined();
   });
   it("enforces dashboard widget grid and review decisions", () => {
     expect(

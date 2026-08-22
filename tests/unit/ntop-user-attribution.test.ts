@@ -11,6 +11,7 @@ describe("NTOP per-user attribution", () => {
   const orchestrator = read("server/services/ntop-chat-orchestrator.ts");
   const client = read("server/integrations/ntop/client.ts");
   const chat = read("server/services/chat-service.ts");
+  const compose = read("docker-compose.yml");
 
   it("stores the personal key as an authenticated encrypted envelope", () => {
     expect(schema).toContain("ntopApiKeyCiphertext");
@@ -21,7 +22,8 @@ describe("NTOP per-user attribution", () => {
   });
 
   it("binds reads and writes to the authenticated InsightKM user", () => {
-    expect(chat).toContain("context.userId,\n    input.message");
+    expect(chat).toContain("orchestrateNtopChat(context.userId, input.message");
+    expect(chat).toContain("contextMessages: await ntopContextPromise");
     expect(orchestrator).toContain("configuredNtopConnectionForUser(userId");
     expect(actionService).toContain(
       "configuredNtopClientForUser(context.userId)",
@@ -51,5 +53,13 @@ describe("NTOP per-user attribution", () => {
     const claim = actionService.indexOf("updateMany({", credentialCheck);
     expect(credentialCheck).toBeGreaterThan(-1);
     expect(claim).toBeGreaterThan(credentialCheck);
+  });
+
+  it("passes the NTOP runtime connection settings into the app container", () => {
+    expect(compose).toContain("NTOP_API_URL: ${NTOP_API_URL:-}");
+    expect(compose).toContain("NTOP_API_KEY: ${NTOP_API_KEY:-}");
+    expect(compose).toContain(
+      "NTOP_API_TIMEOUT_MS: ${NTOP_API_TIMEOUT_MS:-15000}",
+    );
   });
 });

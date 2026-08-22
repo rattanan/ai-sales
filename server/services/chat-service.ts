@@ -34,6 +34,7 @@ import {
   orchestrateNtopChat,
   type NtopChatOutcome,
 } from "@/server/services/ntop-chat-orchestrator";
+import { hasNtopSalesSignal } from "@/server/services/ntop-intent-service";
 import {
   searchWeb,
   type WebSearchEvidence,
@@ -41,6 +42,11 @@ import {
 
 function isThai(value: string) {
   return /[\u0E00-\u0E7F]/.test(value);
+}
+
+function ntopToolType(outcome: NtopChatOutcome) {
+  if (outcome.toolErrorCode) return "NTOP_CONNECTION";
+  return outcome.action ? "NTOP_WRITE_PROPOSAL" : "NTOP_READ";
 }
 
 function noEvidenceMessage(query: string) {
@@ -606,6 +612,21 @@ export async function sendKnowledgeChatMessage(
   const privacyPolicyPromise = getEffectiveAiPrivacyPolicy(
     context.organizationId,
   );
+  const ntopContextPromise =
+    input.webSearch || !hasNtopSalesSignal(input.message)
+      ? Promise.resolve([] as string[])
+      : db.chatMessage
+          .findMany({
+            where: {
+              conversationId: conversation.id,
+              id: { not: userMessage.id },
+              role: "USER",
+            },
+            orderBy: { createdAt: "desc" },
+            take: 6,
+            select: { content: true },
+          })
+          .then((messages) => messages.reverse().map(({ content }) => content));
   const webSearchStartedAt = performance.now();
   let webSearchEvidence: WebSearchEvidence[] = [];
   let webSearchFailed = false;
@@ -624,9 +645,12 @@ export async function sendKnowledgeChatMessage(
   );
   const ntopOutcome: NtopChatOutcome = input.webSearch
     ? { evidence: [], toolUsed: false }
-    : await orchestrateNtopChat(context.userId, input.message).catch(() => ({
+    : await orchestrateNtopChat(context.userId, input.message, {
+        contextMessages: await ntopContextPromise,
+      }).catch(() => ({
         evidence: [],
         toolUsed: true,
+        toolErrorCode: "NTOP_UNAVAILABLE" as const,
         message: isThai(input.message)
           ? "ไม่สามารถเชื่อมต่อ NTOP Business Memory ได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง"
           : "NTOP Business Memory is currently unavailable. Please try again.",
@@ -787,6 +811,13 @@ export async function sendKnowledgeChatMessage(
       errorCode = "AI_PROVIDER_ERROR";
     }
   }
+  if (ntopOutcome.warning) {
+    const warning = isThai(input.message)
+      ? `หมายเหตุจาก NTOP: ${ntopOutcome.warning}`
+      : `NTOP note: ${ntopOutcome.warning}`;
+    answer.content = `${answer.content}\n\n${warning}`;
+    if (emittedToken) await emitToken(`\n\n${warning}`);
+  }
   if (!emittedToken) await emitToken(answer.content);
   const completedTurn = await db.$transaction(async (tx) => {
     const message = await tx.chatMessage.create({
@@ -930,10 +961,10 @@ export async function sendKnowledgeChatMessage(
               : ntopOutcome.toolUsed
                 ? {
                     create: {
-                      toolType: ntopOutcome.action
-                        ? "NTOP_WRITE_PROPOSAL"
-                        : "NTOP_READ",
-                      status: "COMPLETED",
+                      toolType: ntopToolType(ntopOutcome),
+                      status: ntopOutcome.toolErrorCode
+                        ? "FAILED"
+                        : "COMPLETED",
                       maskedInput: {
                         question: maskFreeText(input.message, privacyPolicy),
                       },
@@ -941,6 +972,7 @@ export async function sendKnowledgeChatMessage(
                         recordCount: ntopOutcome.evidence.length,
                         proposedAction: ntopOutcome.action?.type ?? null,
                       },
+                      errorCode: ntopOutcome.toolErrorCode ?? null,
                     },
                   }
                 : undefined,
@@ -1019,10 +1051,8 @@ export async function sendKnowledgeChatMessage(
               }
             : ntopOutcome.toolUsed
               ? {
-                  type: ntopOutcome.action
-                    ? "NTOP_WRITE_PROPOSAL"
-                    : "NTOP_READ",
-                  status: "COMPLETED",
+                  type: ntopToolType(ntopOutcome),
+                  status: ntopOutcome.toolErrorCode ? "FAILED" : "COMPLETED",
                 }
               : undefined,
       suggestedAction: completedTurn.action

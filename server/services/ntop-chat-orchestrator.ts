@@ -1,6 +1,9 @@
 import type { NtopActionType } from "@/generated/prisma/client";
 import { configuredNtopConnectionForUser } from "@/server/integrations/ntop/client";
-import { detectNtopSalesIntent } from "@/server/services/ntop-intent-service";
+import {
+  detectNtopSalesIntent,
+  fallbackNtopSalesIntent,
+} from "@/server/services/ntop-intent-service";
 
 type RecordValue = Record<string, unknown>;
 
@@ -25,6 +28,9 @@ export type NtopChatOutcome = {
   }>;
   action?: NtopActionDraft;
   message?: string;
+  warning?: string;
+  toolErrorCode?:
+    "NTOP_NOT_CONFIGURED" | "NTOP_PERSONAL_KEY_REQUIRED" | "NTOP_UNAVAILABLE";
   toolUsed: boolean;
 };
 
@@ -74,13 +80,31 @@ function money(value: string | null) {
 export async function orchestrateNtopChat(
   userId: string,
   message: string,
+  options: { contextMessages?: string[] } = {},
 ): Promise<NtopChatOutcome> {
+  const contextMessages = options.contextMessages ?? [];
+  const fallbackIntent = fallbackNtopSalesIntent(message, contextMessages);
   const connection = await configuredNtopConnectionForUser(userId, {
     allowLegacyKey: true,
   });
-  if (!connection) return { evidence: [], toolUsed: false };
+  if (!connection) {
+    if (fallbackIntent.intent === "NONE" || !fallbackIntent.company)
+      return { evidence: [], toolUsed: false };
+    return {
+      evidence: [],
+      toolUsed: true,
+      warning: /[\u0E00-\u0E7F]/.test(message)
+        ? fallbackIntent.intent === "LOOKUP"
+          ? `ตรวจพบคำขอค้นข้อมูลของ ${fallbackIntent.company} แต่ AI-Sales ยังไม่ได้เชื่อมต่อ NTOP กรุณาให้ผู้ดูแลตั้งค่า NTOP integration แล้วลองอีกครั้ง`
+          : `ตรวจพบข้อมูลที่เหมาะสำหรับบันทึกเป็น Prospect ของ ${fallbackIntent.company} แต่ AI-Sales ยังไม่ได้เชื่อมต่อ NTOP กรุณาให้ผู้ดูแลตั้งค่า NTOP integration แล้วลองอีกครั้ง`
+        : fallbackIntent.intent === "LOOKUP"
+          ? `I detected an NTOP lookup for ${fallbackIntent.company}, but AI-Sales is not connected to NTOP. Ask an administrator to configure the integration and try again.`
+          : `This looks suitable for a Prospect for ${fallbackIntent.company}, but AI-Sales is not connected to NTOP. Ask an administrator to configure the NTOP integration and try again.`,
+      toolErrorCode: "NTOP_NOT_CONFIGURED",
+    };
+  }
   const { client } = connection;
-  const intent = await detectNtopSalesIntent(message);
+  const intent = await detectNtopSalesIntent(message, contextMessages);
   if (intent.intent === "NONE" || !intent.company)
     return { evidence: [], toolUsed: false };
   const [customers, prospects, leads, opportunities, quotations] =
@@ -120,6 +144,10 @@ export async function orchestrateNtopChat(
     return {
       evidence: evidence(combined, intent.company),
       toolUsed: true,
+      warning: /[\u0E00-\u0E7F]/.test(message)
+        ? `พบข้อมูลของ ${intent.company} แล้ว แต่ยังเสนอรายการเขียนไม่ได้ กรุณาเชื่อม personal NTOP API Key ในหน้า Profile แล้วลองอีกครั้ง`
+        : `I found records for ${intent.company}, but cannot propose a write yet. Connect your personal NTOP API Key in Profile and try again.`,
+      toolErrorCode: "NTOP_PERSONAL_KEY_REQUIRED",
     };
 
   const existingOpportunity = (opportunities as RecordValue[]).find((item) =>
