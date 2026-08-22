@@ -77,6 +77,15 @@ type GroundingEvidence = Omit<RetrievedKnowledge, "chunkId"> & {
   chunkId?: string;
 };
 
+export function persistableKnowledgeCitations(
+  evidence: GroundingEvidence[],
+): Array<GroundingEvidence & { chunkId: string }> {
+  return evidence.filter(
+    (item): item is GroundingEvidence & { chunkId: string } =>
+      typeof item.chunkId === "string" && item.chunkId.length > 0,
+  );
+}
+
 function overlapScore(query: string, content: string) {
   const terms = new Set(
     query
@@ -877,18 +886,20 @@ export async function sendKnowledgeChatMessage(
                     ],
                   }
                 : {
-                    create: evidence.map((item, index) => ({
-                      ...(item.chunkId ? { chunkId: item.chunkId } : {}),
-                      rank: index + 1,
-                      score: item.score,
-                      quote: item.content.slice(0, 500),
-                      metadata: {
-                        documentId: item.documentId,
-                        documentName: item.documentName,
-                        mimeType: item.mimeType,
-                        ...(item.metadata ?? {}),
-                      },
-                    })),
+                    create: persistableKnowledgeCitations(evidence).map(
+                      (item, index) => ({
+                        chunkId: item.chunkId,
+                        rank: index + 1,
+                        score: item.score,
+                        quote: item.content.slice(0, 500),
+                        metadata: {
+                          documentId: item.documentId,
+                          documentName: item.documentName,
+                          mimeType: item.mimeType,
+                          ...(item.metadata ?? {}),
+                        },
+                      }),
+                    ),
                   },
         retrievalTraces: evidence.length
           ? {
