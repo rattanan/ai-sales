@@ -1,9 +1,24 @@
 import type { AppResult } from "@/types/result";
+import { logger } from "@/server/services/logger";
 
 type TokenEmitter = (token: string) => void | Promise<void>;
 
 function eventPayload(event: string, data: unknown) {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+}
+
+function safeErrorDiagnostics(error: unknown) {
+  if (!(error instanceof Error)) return { errorType: typeof error };
+  const code =
+    "code" in error &&
+    (typeof error.code === "string" || typeof error.code === "number")
+      ? String(error.code)
+      : undefined;
+  return {
+    errorType: error.name,
+    errorCode: code,
+    stackFrames: error.stack?.split("\n").slice(1, 8).join("\n"),
+  };
 }
 
 export function chatStreamResponse<T>(
@@ -32,10 +47,16 @@ export function chatStreamResponse<T>(
               error: result.error.code,
               message: result.error.message,
             });
-        } catch {
+        } catch (error) {
+          const requestId = crypto.randomUUID();
+          logger.error("Chat stream operation failed", {
+            requestId,
+            ...safeErrorDiagnostics(error),
+          });
           emit("error", {
             error: "INTERNAL_ERROR",
             message: "The message could not be completed. Please try again.",
+            requestId,
           });
         } finally {
           if (!cancelled) {

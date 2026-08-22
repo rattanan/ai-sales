@@ -113,4 +113,59 @@ describe("NTOP chat orchestration", () => {
       },
     });
   });
+
+  it("answers a Prospect lookup deterministically from NTOP records", async () => {
+    const emptySearch = vi.fn().mockResolvedValue([]);
+    mocks.configuredNtopConnectionForUser.mockResolvedValue({
+      credentialSource: "USER",
+      client: {
+        searchCustomer: emptySearch,
+        searchProspect: vi.fn().mockResolvedValue([
+          {
+            prospectCode: "PR-001",
+            companyName: "ธกศ",
+            status: "NEW",
+          },
+        ]),
+        searchLead: emptySearch,
+        searchOpportunity: emptySearch,
+        searchQuotation: emptySearch,
+      },
+    });
+
+    const outcome = await orchestrateNtopChat(
+      "user-1",
+      "ช่วยค้นให้หน่อย ตอนนี้ลูกค้า ธกศ มี prospect อะไรบ้าง",
+    );
+
+    expect(outcome).toMatchObject({ toolUsed: true });
+    expect(outcome.message).toContain("พบ PROSPECT ของ ธกศ");
+    expect(outcome.message).toContain("PR-001 · ธกศ · NEW");
+  });
+
+  it("looks up products when the user explicitly asks for products", async () => {
+    const emptySearch = vi.fn().mockResolvedValue([]);
+    const searchProduct = vi.fn().mockResolvedValue([
+      { productCode: "FIX-IP", name: "Fixed IP", status: "ACTIVE" },
+    ]);
+    mocks.configuredNtopConnectionForUser.mockResolvedValue({
+      credentialSource: "USER",
+      client: {
+        searchCustomer: emptySearch,
+        searchProspect: emptySearch,
+        searchLead: emptySearch,
+        searchOpportunity: emptySearch,
+        searchQuotation: emptySearch,
+        searchProduct,
+      },
+    });
+
+    const outcome = await orchestrateNtopChat(
+      "user-1",
+      "ช่วยค้น product ของลูกค้า ABC ให้หน่อย",
+    );
+
+    expect(searchProduct).toHaveBeenCalledWith("ABC");
+    expect(outcome.message).toContain("FIX-IP · Fixed IP · ACTIVE");
+  });
 });

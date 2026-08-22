@@ -77,6 +77,89 @@ function money(value: string | null) {
     : "ยังไม่ระบุมูลค่า";
 }
 
+type LookupKind =
+  | "CUSTOMER"
+  | "PROSPECT"
+  | "LEAD"
+  | "OPPORTUNITY"
+  | "QUOTATION"
+  | "PRODUCT";
+
+function requestedLookupKind(message: string): LookupKind | null {
+  if (/\bprospect\b|ผู้มุ่งหวัง/iu.test(message)) return "PROSPECT";
+  if (/\blead\b/iu.test(message)) return "LEAD";
+  if (/\bopportunit(?:y|ies)\b|โอกาสขาย/iu.test(message))
+    return "OPPORTUNITY";
+  if (/\bquotation\b|\bquote\b|ใบเสนอราคา/iu.test(message))
+    return "QUOTATION";
+  if (/\bproduct\b|สินค้า|ผลิตภัณฑ์/iu.test(message)) return "PRODUCT";
+  if (/\bcustomer\b|ลูกค้า/iu.test(message)) return "CUSTOMER";
+  return null;
+}
+
+function displayValue(record: RecordValue, ...keys: string[]) {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number") return String(value);
+  }
+  return "";
+}
+
+function lookupRecordLine(kind: LookupKind, record: RecordValue) {
+  const identifiers: Record<LookupKind, string[]> = {
+    CUSTOMER: ["customerNumber", "customerCode", "name"],
+    PROSPECT: ["prospectCode", "companyName"],
+    LEAD: ["leadNumber", "company"],
+    OPPORTUNITY: ["opportunityNumber", "name"],
+    QUOTATION: ["quotationNumber", "quoteNumber", "name"],
+    PRODUCT: ["productCode", "code", "name"],
+  };
+  const names: Record<LookupKind, string[]> = {
+    CUSTOMER: ["name", "companyName"],
+    PROSPECT: ["companyName", "companyNameEnglish"],
+    LEAD: ["company", "contactName"],
+    OPPORTUNITY: ["name", "companyName"],
+    QUOTATION: ["name", "title"],
+    PRODUCT: ["name", "productName"],
+  };
+  const identifier = displayValue(record, ...identifiers[kind]);
+  const name = displayValue(record, ...names[kind]);
+  const status = displayValue(record, "status", "stage", "active");
+  return [...new Set([identifier, name, status].filter(Boolean))].join(" · ");
+}
+
+function lookupMessage(
+  message: string,
+  company: string,
+  groups: Record<LookupKind, RecordValue[]>,
+) {
+  const requested = requestedLookupKind(message);
+  const selected = requested ? groups[requested] : [];
+  const isThaiMessage = /[\u0E00-\u0E7F]/.test(message);
+  if (requested && selected.length) {
+    const lines = selected
+      .slice(0, 10)
+      .map(
+        (record, index) =>
+          `${index + 1}. ${lookupRecordLine(requested, record)}`,
+      );
+    return isThaiMessage
+      ? `พบ ${requested} ของ ${company} ใน NTOP จำนวน ${selected.length} รายการ\n\n${lines.join("\n")}`
+      : `Found ${selected.length} ${requested.toLowerCase()} record(s) for ${company} in NTOP.\n\n${lines.join("\n")}`;
+  }
+  const counts = Object.entries(groups)
+    .filter(([, records]) => records.length)
+    .map(([kind, records]) => `${kind}: ${records.length}`);
+  if (!counts.length)
+    return isThaiMessage
+      ? `ไม่พบข้อมูลของ ${company} ใน NTOP`
+      : `No NTOP records were found for ${company}.`;
+  return isThaiMessage
+    ? `พบข้อมูลของ ${company} ใน NTOP: ${counts.join(", ")}`
+    : `Found NTOP records for ${company}: ${counts.join(", ")}`;
+}
+
 export async function orchestrateNtopChat(
   userId: string,
   message: string,
@@ -107,20 +190,34 @@ export async function orchestrateNtopChat(
   const intent = await detectNtopSalesIntent(message, contextMessages);
   if (intent.intent === "NONE" || !intent.company)
     return { evidence: [], toolUsed: false };
-  const [customers, prospects, leads, opportunities, quotations] =
+  const productLookup =
+    intent.intent === "LOOKUP" && requestedLookupKind(message) === "PRODUCT"
+      ? client.searchProduct(intent.company)
+      : Promise.resolve([]);
+  const [customers, prospects, leads, opportunities, quotations, products] =
     await Promise.all([
       client.searchCustomer(intent.company),
       client.searchProspect(intent.company),
       client.searchLead(intent.company),
       client.searchOpportunity(intent.company),
       client.searchQuotation(intent.company),
+      productLookup,
     ]);
+  const groups: Record<LookupKind, RecordValue[]> = {
+    CUSTOMER: customers as RecordValue[],
+    PROSPECT: prospects as RecordValue[],
+    LEAD: leads as RecordValue[],
+    OPPORTUNITY: opportunities as RecordValue[],
+    QUOTATION: quotations as RecordValue[],
+    PRODUCT: products as RecordValue[],
+  };
   const combined = [
     ...customers,
     ...prospects,
     ...leads,
     ...opportunities,
     ...quotations,
+    ...products,
   ] as RecordValue[];
   if (intent.intent === "LOOKUP") {
     const firstOpportunity = opportunities[0] as RecordValue | undefined;
@@ -134,9 +231,7 @@ export async function orchestrateNtopChat(
         intent.company,
       ),
       toolUsed: true,
-      ...(!combined.length
-        ? { message: `ไม่พบข้อมูลของ ${intent.company} ใน NTOP` }
-        : {}),
+      message: lookupMessage(message, intent.company, groups),
     };
   }
 
