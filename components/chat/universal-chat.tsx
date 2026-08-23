@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -12,6 +12,7 @@ import {
   Globe2,
   LoaderCircle,
   MessageSquarePlus,
+  Library,
   PlugZap,
   Search,
   Send,
@@ -27,6 +28,11 @@ import {
   ChatSelectedAttachments,
 } from "@/components/chat/chat-attachment-picker";
 import type { NtopSuggestedAction } from "@/schemas/ntop";
+import {
+  ChatSourcePanel,
+  selectedChatSourceScope,
+  type ChatKnowledgeSource,
+} from "@/components/chat/chat-source-panel";
 
 type Message = {
   id: string;
@@ -80,7 +86,7 @@ export function UniversalChat({
   webSearchAvailable = false,
 }: {
   bots: Array<{ id: string; name: string }>;
-  sources: Array<{ id: string; name: string; type: string }>;
+  sources: ChatKnowledgeSource[];
   conversations: Array<{
     id: string;
     title: string;
@@ -96,7 +102,8 @@ export function UniversalChat({
   const [scope, setScope] = useState<Scope>("SMART");
   const [mode, setMode] = useState<Mode>("AUTO");
   const [botId, setBotId] = useState("");
-  const [sourceIds, setSourceIds] = useState<string[]>([]);
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
+  const [sourcePanelOpen, setSourcePanelOpen] = useState(false);
   const [conversationId, setConversationId] = useState(selectedConversationId);
   const [messages, setMessages] = useState(initialMessages);
   const [message, setMessage] = useState("");
@@ -107,13 +114,30 @@ export function UniversalChat({
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const showBot = scope === "SPECIFIC_BOT";
   const showSources = scope === "SPECIFIC_SOURCES";
-  const selectedSources = useMemo(() => new Set(sourceIds), [sourceIds]);
+  const selectedDocuments = useMemo(
+    () => new Set(selectedDocumentIds),
+    [selectedDocumentIds],
+  );
+  const selectedSourceScope = useMemo(
+    () => selectedChatSourceScope(sources, selectedDocuments),
+    [selectedDocuments, sources],
+  );
+
+  useEffect(() => {
+    if (!sourcePanelOpen) return;
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setSourcePanelOpen(false);
+    }
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [sourcePanelOpen]);
 
   function startNewChat() {
     setScope("SMART");
     setMode("AUTO");
     setBotId("");
-    setSourceIds([]);
+    setSelectedDocumentIds([]);
+    setSourcePanelOpen(false);
     setConversationId(undefined);
     setMessages([]);
     setMessage("");
@@ -134,8 +158,9 @@ export function UniversalChat({
       setError("Select a bot for Specific Bot scope.");
       return;
     }
-    if (showSources && !sourceIds.length) {
-      setError("Select at least one source.");
+    if (showSources && !selectedDocumentIds.length) {
+      setError("Select at least one source or file.");
+      setSourcePanelOpen(true);
       return;
     }
     const optimistic: Message = {
@@ -162,7 +187,8 @@ export function UniversalChat({
         scope,
         mode,
         botId: showBot ? botId : undefined,
-        sourceIds: showSources ? sourceIds : [],
+        sourceIds: showSources ? selectedSourceScope.sourceIds : [],
+        documentIds: showSources ? selectedSourceScope.documentIds : [],
         webSearch,
       };
       const formData = new FormData();
@@ -221,7 +247,9 @@ export function UniversalChat({
   }
 
   return (
-    <div className="grid min-h-[calc(100dvh-10rem)] gap-5 xl:grid-cols-[290px_minmax(0,1fr)]">
+    <div
+      className={`grid min-h-[calc(100dvh-10rem)] gap-5 xl:grid-cols-[290px_minmax(0,1fr)] ${sourcePanelOpen ? "2xl:grid-cols-[290px_minmax(0,1fr)_320px]" : ""}`}
+    >
       <aside className="rounded-xl border bg-card p-4">
         <Link
           href="/workspace/chat"
@@ -277,21 +305,48 @@ export function UniversalChat({
             <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
               ACL enforced
             </span>
-            {conversationId ? (
-              <a
-                href={`/api/universal-chat/export?conversation=${conversationId}`}
-                className="ml-auto inline-flex min-h-11 items-center gap-2 rounded-lg border px-3 text-sm font-medium"
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                aria-controls="chat-source-panel"
+                aria-expanded={sourcePanelOpen}
+                onClick={() => setSourcePanelOpen((open) => !open)}
+                className={
+                  showSources
+                    ? "border-amber-400 bg-amber-50 text-amber-900"
+                    : ""
+                }
               >
-                <Download size={16} /> Export
-              </a>
-            ) : null}
+                <Library size={16} />
+                Sources
+                {selectedDocumentIds.length ? (
+                  <span className="rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                    {selectedDocumentIds.length}
+                  </span>
+                ) : null}
+              </Button>
+              {conversationId ? (
+                <a
+                  href={`/api/universal-chat/export?conversation=${conversationId}`}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-lg border px-3 text-sm font-medium"
+                >
+                  <Download size={16} /> Export
+                </a>
+              ) : null}
+            </div>
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <label className="text-sm">
               <span className="mb-1 block font-medium">Scope</span>
               <select
                 value={scope}
-                onChange={(event) => setScope(event.target.value as Scope)}
+                onChange={(event) => {
+                  const nextScope = event.target.value as Scope;
+                  setScope(nextScope);
+                  if (nextScope === "SPECIFIC_SOURCES")
+                    setSourcePanelOpen(true);
+                }}
                 className="min-h-11 w-full rounded-lg border bg-background px-3"
               >
                 <option value="SMART">Smart routing</option>
@@ -342,33 +397,18 @@ export function UniversalChat({
             ) : null}
           </div>
           {showSources ? (
-            <fieldset className="mt-3">
-              <legend className="text-sm font-medium">Sources</legend>
-              <div className="mt-2 flex max-h-32 flex-wrap gap-2 overflow-y-auto">
-                {sources.map((source) => (
-                  <label
-                    key={source.id}
-                    className="flex min-h-11 items-center gap-2 rounded-lg border px-3 text-sm"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedSources.has(source.id)}
-                      onChange={(event) =>
-                        setSourceIds((items) =>
-                          event.target.checked
-                            ? [...items, source.id]
-                            : items.filter((id) => id !== source.id),
-                        )
-                      }
-                    />
-                    {source.name}
-                    <span className="text-xs text-muted-foreground">
-                      {source.type}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
+            <p className="mt-3 flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              <Library size={14} aria-hidden="true" />
+              {selectedDocumentIds.length ? (
+                <>
+                  Searching {selectedDocumentIds.length} selected file
+                  {selectedDocumentIds.length === 1 ? "" : "s"}. Open Sources to
+                  change the selection.
+                </>
+              ) : (
+                <>Choose at least one folder or file from Sources.</>
+              )}
+            </p>
           ) : null}
         </header>
         <div
@@ -571,6 +611,26 @@ export function UniversalChat({
           </p>
         </div>
       </section>
+      {sourcePanelOpen ? (
+        <>
+          <button
+            type="button"
+            aria-label="Close source panel"
+            onClick={() => setSourcePanelOpen(false)}
+            className="fixed inset-0 z-40 cursor-default bg-slate-950/20 backdrop-blur-[1px] 2xl:hidden"
+          />
+          <ChatSourcePanel
+            sources={sources}
+            selectedDocumentIds={selectedDocuments}
+            onSelectionChange={(ids) => {
+              setSelectedDocumentIds(ids);
+              setScope(ids.length ? "SPECIFIC_SOURCES" : "SMART");
+              setError("");
+            }}
+            onClose={() => setSourcePanelOpen(false)}
+          />
+        </>
+      ) : null}
     </div>
   );
 }

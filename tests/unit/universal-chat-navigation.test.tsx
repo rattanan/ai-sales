@@ -135,4 +135,69 @@ describe("universal chat navigation", () => {
       ),
     );
   });
+
+  it("sends a partial file selection as document-scoped retrieval", async () => {
+    const result = {
+      conversation: { id: "conversation-files" },
+      userMessage: { id: "message-user", content: "Compare targets" },
+      assistantMessage: {
+        id: "message-assistant",
+        role: "ASSISTANT",
+        content: "Compared",
+        citations: [],
+      },
+    };
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(`event: result\ndata: ${JSON.stringify(result)}\n\n`, {
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+      }),
+    );
+    render(
+      <UniversalChat
+        bots={[]}
+        sources={[
+          {
+            id: "source-sales",
+            name: "Quarterly reports",
+            type: "FILE",
+            folderId: "folder-sales",
+            folderName: "Sales",
+            documents: [
+              {
+                id: "document-q1",
+                name: "Q1.pdf",
+                mimeType: "application/pdf",
+              },
+              {
+                id: "document-q2",
+                name: "Q2.pdf",
+                mimeType: "application/pdf",
+              },
+            ],
+          },
+        ]}
+        conversations={[]}
+        initialMessages={[]}
+        historyQuery=""
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Sources" }));
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Select file Q1.pdf" }),
+    );
+    fireEvent.change(screen.getByPlaceholderText("Ask AI-Sales…"), {
+      target: { value: "Compare targets" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    const options = vi.mocked(fetch).mock.calls[0]?.[1];
+    expect(JSON.parse(options?.body as string)).toMatchObject({
+      scope: "SPECIFIC_SOURCES",
+      sourceIds: [],
+      documentIds: ["document-q1"],
+    });
+  });
 });

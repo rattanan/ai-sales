@@ -81,7 +81,21 @@ export default async function ChatIndexPage({
       active: true,
       status: "READY",
     },
-    select: { id: true, name: true, type: true, rackId: true },
+    select: {
+      id: true,
+      name: true,
+      type: true,
+      rackId: true,
+      rack: { select: { name: true } },
+      documents: {
+        where: {
+          active: true,
+          currentVersion: { status: "INDEXED" },
+        },
+        select: { id: true, name: true, mimeType: true },
+        orderBy: { name: "asc" },
+      },
+    },
     orderBy: { name: "asc" },
   });
   const sourceDecisions = await Promise.all(
@@ -98,11 +112,14 @@ export default async function ChatIndexPage({
     })),
   );
   const sources = sourceDecisions
-    .filter(({ allowed }) => allowed)
+    .filter(({ allowed, source }) => allowed && source.documents.length > 0)
     .map(({ source }) => ({
       id: source.id,
       name: source.name,
       type: source.type,
+      folderId: source.rackId,
+      folderName: source.rack.name,
+      documents: source.documents,
     }));
   return (
     <UniversalChat

@@ -568,6 +568,7 @@ export async function sendKnowledgeChatMessage(
       | "GENERATE_REPORT"
       | "QUERY_LIVE_DATA";
     sourceIds?: string[];
+    documentIds?: string[];
     webSearch?: boolean;
     attachments?: ParsedChatAttachment[];
     isUniversal?: boolean;
@@ -693,6 +694,7 @@ export async function sendKnowledgeChatMessage(
       scopeConfig: {
         botId: bot.id,
         sourceIds: input.sourceIds ?? [],
+        documentIds: input.documentIds ?? [],
         webSearch: input.webSearch ?? false,
         attachments: attachmentSummaries,
       },
@@ -825,6 +827,8 @@ export async function sendKnowledgeChatMessage(
               ].includes(scope),
               sourceIds:
                 scope === "SPECIFIC_SOURCES" ? input.sourceIds : undefined,
+              documentIds:
+                scope === "SPECIFIC_SOURCES" ? input.documentIds : undefined,
             }),
     conversationMemoryForPrompt(context, {
       conversationId: conversation.id,
@@ -958,6 +962,7 @@ export async function sendKnowledgeChatMessage(
         scopeConfig: {
           botId: bot.id,
           sourceIds: input.sourceIds ?? [],
+          documentIds: input.documentIds ?? [],
           webSearch: input.webSearch ?? false,
           ...(databaseAnswer?.confirmationQuestion
             ? {
@@ -1246,6 +1251,7 @@ export async function sendUniversalChatMessage(
       | "GENERATE_REPORT"
       | "QUERY_LIVE_DATA";
     sourceIds: string[];
+    documentIds: string[];
     webSearch?: boolean;
     attachments?: ParsedChatAttachment[];
     onToken?: (token: string) => void | Promise<void>;
@@ -1301,6 +1307,7 @@ export async function sendUniversalChatMessage(
     scope: input.scope,
     mode: input.mode,
     sourceIds: input.sourceIds,
+    documentIds: input.documentIds,
     webSearch: input.webSearch,
     attachments: input.attachments,
     isUniversal: true,

@@ -105,6 +105,14 @@ describe("enterprise chat and source contracts", () => {
         sourceIds: [],
       }).success,
     ).toBe(false);
+    expect(
+      universalChatRequestSchema.safeParse({
+        ...base,
+        scope: "SPECIFIC_SOURCES",
+        sourceIds: [],
+        documentIds: ["document-1"],
+      }).success,
+    ).toBe(true);
   });
 
   it("requires at least one bot for SELECTED_BOTS source scope", () => {

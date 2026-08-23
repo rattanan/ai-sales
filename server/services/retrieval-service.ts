@@ -63,6 +63,7 @@ export async function retrieveBotContext(
     reranker?: KnowledgeReranker;
     allAccessible?: boolean;
     sourceIds?: string[];
+    documentIds?: string[];
   },
 ) {
   await requireBotUse(context, botId);
@@ -72,7 +73,9 @@ export async function retrieveBotContext(
   });
   if (!bot) return [];
   const rackAssignments =
-    options?.allAccessible || options?.sourceIds?.length
+    options?.allAccessible ||
+    options?.sourceIds?.length ||
+    options?.documentIds?.length
       ? await db.knowledgeRack
           .findMany({
             where: { organizationId: context.organizationId, active: true },
@@ -152,10 +155,15 @@ export async function retrieveBotContext(
             WHERE override."sourceId" = s.id
           )
       ))
-      AND (cardinality($8::text[]) = 0 OR s.id = ANY($8::text[]))`;
+      AND (
+        (cardinality($8::text[]) = 0 AND cardinality($9::text[]) = 0)
+        OR s.id = ANY($8::text[])
+        OR d.id = ANY($9::text[])
+      )`;
   const keywordAclSql = vectorAclSql
     .replaceAll("$7", "$5")
-    .replaceAll("$8", "$6");
+    .replaceAll("$8", "$6")
+    .replaceAll("$9", "$7");
   // pgvector HNSW supports up to 2,000 dimensions. Larger embeddings retain
   // the generic vector expression and therefore use the exact-scan path.
   const indexedDimensions = new Set([384, 768, 1024, 1536]);
@@ -184,6 +192,7 @@ export async function retrieveBotContext(
         query,
         Boolean(options?.allAccessible),
         options?.sourceIds ?? [],
+        options?.documentIds ?? [],
       )
     : await db.$queryRawUnsafe<RetrievalRow[]>(
         `SELECT c.id AS "chunkId", c.content, c."contentHash", c.metadata,
@@ -200,6 +209,7 @@ export async function retrieveBotContext(
         query,
         Boolean(options?.allAccessible),
         options?.sourceIds ?? [],
+        options?.documentIds ?? [],
       );
   const seen = new Set<string>();
   const candidates = rows

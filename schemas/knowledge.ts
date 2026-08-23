@@ -233,6 +233,7 @@ export const universalChatRequestSchema = z
       "QUERY_LIVE_DATA",
     ]),
     sourceIds: z.array(z.string().min(1)).max(100).default([]),
+    documentIds: z.array(z.string().min(1)).max(10_000).default([]),
     webSearch: z.boolean().default(false),
   })
   .superRefine((value, context) => {
@@ -242,11 +243,15 @@ export const universalChatRequestSchema = z
         path: ["botId"],
         message: "Select a bot for Specific Bot scope",
       });
-    if (value.scope === "SPECIFIC_SOURCES" && !value.sourceIds.length)
+    if (
+      value.scope === "SPECIFIC_SOURCES" &&
+      !value.sourceIds.length &&
+      !value.documentIds.length
+    )
       context.addIssue({
         code: "custom",
-        path: ["sourceIds"],
-        message: "Select at least one source",
+        path: ["documentIds"],
+        message: "Select at least one source or file",
       });
   });
 
