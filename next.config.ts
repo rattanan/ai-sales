@@ -6,6 +6,13 @@ const serverActionOrigins = (process.env.SERVER_ACTION_ALLOWED_ORIGINS ?? "")
   .map((value) => value.trim())
   .filter(Boolean);
 
+const pdfRuntimeFiles = [
+  "./node_modules/pdf-parse/dist/**/*",
+  "./node_modules/pdfjs-dist/legacy/build/**/*",
+  "./node_modules/@napi-rs/canvas/**/*",
+  "./node_modules/@napi-rs/canvas-*/**/*",
+];
+
 const contentSecurityPolicy = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${production ? "" : " 'unsafe-eval'"}`,
@@ -32,7 +39,12 @@ const nextConfig: NextConfig = {
     "bullmq",
     "mammoth",
     "pdf-parse",
+    "@napi-rs/canvas",
   ],
+  outputFileTracingIncludes: {
+    "/api/knowledge-chat": pdfRuntimeFiles,
+    "/api/universal-chat": pdfRuntimeFiles,
+  },
   allowedDevOrigins: ["127.0.0.1"],
   experimental: {
     serverActions: {
