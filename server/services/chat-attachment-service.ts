@@ -12,6 +12,13 @@ import {
 import { env } from "@/schemas/env";
 
 const MAX_EXTRACTED_CHARACTERS_PER_FILE = 200_000;
+const MAX_SCANNED_PDF_PAGES = 6;
+const MAX_RENDERED_IMAGE_CHARACTERS = 12 * 1024 * 1024;
+
+export type ChatAttachmentVisualPage = {
+  page: number;
+  dataUrl: string;
+};
 
 export type ParsedChatAttachment = {
   name: string;
@@ -22,6 +29,8 @@ export type ParsedChatAttachment = {
     text: string;
     metadata: Record<string, string | number>;
   }>;
+  visualPages?: ChatAttachmentVisualPage[];
+  totalPages?: number;
 };
 
 export class ChatAttachmentRequestError extends Error {
@@ -47,6 +56,34 @@ function boundedSections(
     remaining -= text.length;
   }
   return bounded;
+}
+
+async function renderScannedPdf(bytes: Buffer) {
+  const { PDFParse } = await import("pdf-parse");
+  const parser = new PDFParse({ data: bytes });
+  try {
+    const screenshots = await parser.getScreenshot({
+      first: MAX_SCANNED_PDF_PAGES,
+      desiredWidth: 1_400,
+      imageBuffer: false,
+      imageDataUrl: true,
+    });
+    const visualPages: ChatAttachmentVisualPage[] = [];
+    let characters = 0;
+    for (const page of screenshots.pages) {
+      if (!page.dataUrl) continue;
+      if (
+        visualPages.length > 0 &&
+        characters + page.dataUrl.length > MAX_RENDERED_IMAGE_CHARACTERS
+      )
+        break;
+      visualPages.push({ page: page.pageNumber, dataUrl: page.dataUrl });
+      characters += page.dataUrl.length;
+    }
+    return { visualPages, totalPages: screenshots.total };
+  } finally {
+    await parser.destroy();
+  }
 }
 
 export async function parseChatAttachments(files: File[]) {
@@ -87,20 +124,34 @@ export async function parseChatAttachments(files: File[]) {
           `The file signature for ${file.name} does not match its type.`,
         );
 
-      let parsed: Awaited<ReturnType<typeof parseDocument>>;
+      let parsed: Awaited<ReturnType<typeof parseDocument>> | undefined;
+      let visualPages: ChatAttachmentVisualPage[] | undefined;
+      let totalPages: number | undefined;
       try {
         parsed = await parseDocument(bytes, file.name);
       } catch {
-        throw new ChatAttachmentRequestError(
-          `No readable text could be extracted from ${file.name}.`,
-        );
+        if (file.name.toLocaleLowerCase().endsWith(".pdf"))
+          try {
+            const rendered = await renderScannedPdf(bytes);
+            visualPages = rendered.visualPages;
+            totalPages = rendered.totalPages;
+          } catch {
+            // The common validation error below intentionally does not expose
+            // PDF parser or renderer internals to the client.
+          }
+        if (!visualPages?.length)
+          throw new ChatAttachmentRequestError(
+            `No readable text or pages could be extracted from ${file.name}.`,
+          );
       }
       return {
         name: file.name,
         mimeType: file.type || "application/octet-stream",
         size: file.size,
         checksum: createHash("sha256").update(bytes).digest("hex"),
-        sections: boundedSections(parsed.sections),
+        sections: parsed ? boundedSections(parsed.sections) : [],
+        visualPages,
+        totalPages,
       };
     }),
   );

@@ -21,6 +21,7 @@ import { NtopActionCard } from "@/components/chat/ntop-action-card";
 import {
   ChatAttachmentPicker,
   ChatMessageAttachments,
+  ChatSelectedAttachments,
 } from "@/components/chat/chat-attachment-picker";
 import type { NtopSuggestedAction } from "@/schemas/ntop";
 import {
@@ -632,13 +633,13 @@ export function KnowledgeChat({
             }}
             className="mx-auto max-w-4xl space-y-2"
           >
-            <ChatAttachmentPicker
-              files={attachedFiles}
-              disabled={pending}
-              onChange={setAttachedFiles}
-              onError={(message) => setError(message || undefined)}
-            />
             <div className="flex items-end gap-2">
+              <ChatAttachmentPicker
+                files={attachedFiles}
+                disabled={pending}
+                onChange={setAttachedFiles}
+                onError={(message) => setError(message || undefined)}
+              />
               <label className="flex-1">
                 <span className="sr-only">Message {bot.name}</span>
                 <textarea
@@ -662,6 +663,11 @@ export function KnowledgeChat({
                 <ArrowUp size={18} />
               </Button>
             </div>
+            <ChatSelectedAttachments
+              files={attachedFiles}
+              disabled={pending}
+              onChange={setAttachedFiles}
+            />
           </form>
           <p className="mt-2 text-center text-xs text-muted-foreground">
             Attached files are read for this message only and are not added to

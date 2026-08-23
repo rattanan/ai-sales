@@ -24,6 +24,7 @@ import { NtopActionCard } from "@/components/chat/ntop-action-card";
 import {
   ChatAttachmentPicker,
   ChatMessageAttachments,
+  ChatSelectedAttachments,
 } from "@/components/chat/chat-attachment-picker";
 import type { NtopSuggestedAction } from "@/schemas/ntop";
 
@@ -524,13 +525,13 @@ export function UniversalChat({
             </div>
           ) : null}
           <div className="space-y-2">
-            <ChatAttachmentPicker
-              files={attachedFiles}
-              disabled={pending}
-              onChange={setAttachedFiles}
-              onError={setError}
-            />
-            <div className="flex gap-2">
+            <div className="flex items-end gap-2">
+              <ChatAttachmentPicker
+                files={attachedFiles}
+                disabled={pending}
+                onChange={setAttachedFiles}
+                onError={setError}
+              />
               <textarea
                 aria-label="Message AI-Sales"
                 value={message}
@@ -558,6 +559,11 @@ export function UniversalChat({
                 <span className="hidden sm:inline">Send</span>
               </Button>
             </div>
+            <ChatSelectedAttachments
+              files={attachedFiles}
+              disabled={pending}
+              onChange={setAttachedFiles}
+            />
           </div>
           <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
             <Bot size={13} /> Attach up to 3 supported documents. Ctrl/Cmd +
