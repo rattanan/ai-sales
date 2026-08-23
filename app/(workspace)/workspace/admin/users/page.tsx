@@ -111,7 +111,7 @@ export default async function UsersPage({
                 <td className="px-4 py-4">
                   <Link
                     href={`/workspace/admin/users/${user.id}`}
-                    className="font-medium text-primary hover:underline"
+                    className="font-medium text-foreground hover:underline"
                   >
                     {user.name}
                   </Link>
