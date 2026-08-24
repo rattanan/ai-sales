@@ -477,178 +477,292 @@ export function LegacyApiRegistryForm({
           </section>
         ) : null}
 
-        {step === 1 ? (
-          <section className="space-y-5" aria-labelledby="input-fields-title">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-                  Step 2
-                </p>
-                <h2
-                  id="input-fields-title"
-                  className="mt-1 text-xl font-semibold"
-                >
-                  Enter values for a test call
-                </h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Required fields become inputs that Chat can request from
-                  users.
-                </p>
+        <section
+          className="space-y-5"
+          aria-labelledby="input-fields-title"
+          hidden={step !== 1}
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                Step 2
+              </p>
+              <h2
+                id="input-fields-title"
+                className="mt-1 text-xl font-semibold"
+              >
+                Enter values for a test call
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Required fields become inputs that Chat can request from users.
+              </p>
+            </div>
+            <Button type="button" variant="outline" onClick={addParameter}>
+              <Plus size={17} /> Add field
+            </Button>
+          </div>
+          <div className="space-y-3">
+            {parameters.length === 0 ? (
+              <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+                No input fields were found. Test directly or add a field
+                manually.
               </div>
-              <Button type="button" variant="outline" onClick={addParameter}>
-                <Plus size={17} /> Add field
-              </Button>
-            </div>
-            <div className="space-y-3">
-              {parameters.length === 0 ? (
-                <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-                  No input fields were found. Test directly or add a field
-                  manually.
-                </div>
-              ) : null}
-              {parameters.map((parameter, index) => (
-                <div
-                  key={`${parameter.name}-${index}`}
-                  className="grid gap-3 rounded-xl border bg-muted/30 p-4 lg:grid-cols-[1fr_150px_150px_auto]"
-                >
-                  <Field
-                    label={parameter.label}
-                    htmlFor={`test-${prefix}-${index}`}
-                    hint={`${parameter.location} · ${parameter.name}`}
-                    required={parameter.required}
-                  >
-                    <Input
-                      id={`test-${prefix}-${index}`}
-                      value={testValues[parameter.name] ?? ""}
-                      onChange={(event) => {
-                        setTestValues((current) => ({
-                          ...current,
-                          [parameter.name]: event.target.value,
-                        }));
-                        setTested(false);
-                      }}
-                      placeholder={
-                        parameter.defaultValue === undefined
-                          ? `Enter ${parameter.label.toLowerCase()}`
-                          : `Default: ${String(parameter.defaultValue)}`
-                      }
-                      required={parameter.required}
-                    />
-                  </Field>
-                  <Field
-                    label="Location"
-                    htmlFor={`location-${prefix}-${index}`}
-                  >
-                    <select
-                      id={`location-${prefix}-${index}`}
-                      value={parameter.location}
-                      onChange={(event) =>
-                        updateParameter(index, {
-                          location: event.target
-                            .value as ApiParameter["location"],
-                        })
-                      }
-                      className="min-h-11 w-full rounded-lg border bg-background px-3"
-                    >
-                      <option value="QUERY">Query</option>
-                      <option value="PATH">Path</option>
-                      {method === "POST" ? (
-                        <option value="BODY">Body</option>
-                      ) : null}
-                    </select>
-                  </Field>
-                  <Field label="Type" htmlFor={`type-${prefix}-${index}`}>
-                    <select
-                      id={`type-${prefix}-${index}`}
-                      value={parameter.type}
-                      onChange={(event) =>
-                        updateParameter(index, {
-                          type: event.target.value as ApiParameter["type"],
-                        })
-                      }
-                      className="min-h-11 w-full rounded-lg border bg-background px-3"
-                    >
-                      <option value="STRING">Text</option>
-                      <option value="NUMBER">Number</option>
-                      <option value="BOOLEAN">True / false</option>
-                    </select>
-                  </Field>
-                  <button
-                    type="button"
-                    aria-label={`Remove ${parameter.label}`}
-                    onClick={() =>
-                      setParameters((current) =>
-                        current.filter((_, itemIndex) => itemIndex !== index),
-                      )
-                    }
-                    className="mt-7 grid size-11 place-items-center rounded-lg text-muted-foreground hover:bg-red-50 hover:text-red-700"
-                  >
-                    <Trash2 size={17} />
-                  </button>
-                </div>
-              ))}
-            </div>
-            {authType === "QUERY_API_KEY" ? (
-              <div className="grid gap-4 rounded-xl border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-900 dark:bg-amber-950/20 md:grid-cols-2">
-                <div className="flex gap-3 md:col-span-2">
-                  <KeyRound
-                    className="mt-0.5 shrink-0 text-amber-700"
-                    size={18}
-                  />
-                  <div>
-                    <p className="font-medium">Query API key detected</p>
-                    <p className="text-sm text-muted-foreground">
-                      The key is encrypted and never exposed as a Chat input
-                      field.
-                    </p>
-                  </div>
-                </div>
+            ) : null}
+            {parameters.map((parameter, index) => (
+              <div
+                key={`${parameter.name}-${index}`}
+                className="grid gap-3 rounded-xl border bg-muted/30 p-4 lg:grid-cols-[1fr_150px_150px_auto]"
+              >
                 <Field
-                  label="Query parameter"
-                  htmlFor={`query-key-name-${prefix}`}
+                  label={parameter.label}
+                  htmlFor={`test-${prefix}-${index}`}
+                  hint={`${parameter.location} · ${parameter.name}`}
+                  required={parameter.required}
                 >
                   <Input
-                    id={`query-key-name-${prefix}`}
-                    value={queryApiKeyName}
-                    onChange={(event) => setQueryApiKeyName(event.target.value)}
-                    required
-                  />
-                </Field>
-                <Field
-                  label="API key"
-                  htmlFor={`query-key-${prefix}`}
-                  hint={
-                    value?.credentialPresent
-                      ? "Leave blank to keep the saved encrypted key."
-                      : undefined
-                  }
-                >
-                  <Input
-                    id={`query-key-${prefix}`}
-                    type="password"
-                    value={queryApiKey}
+                    id={`test-${prefix}-${index}`}
+                    value={testValues[parameter.name] ?? ""}
                     onChange={(event) => {
-                      setQueryApiKey(event.target.value);
+                      setTestValues((current) => ({
+                        ...current,
+                        [parameter.name]: event.target.value,
+                      }));
                       setTested(false);
                     }}
+                    placeholder={
+                      parameter.defaultValue === undefined
+                        ? `Enter ${parameter.label.toLowerCase()}`
+                        : `Default: ${String(parameter.defaultValue)}`
+                    }
+                    required={parameter.required}
+                  />
+                </Field>
+                <Field label="Location" htmlFor={`location-${prefix}-${index}`}>
+                  <select
+                    id={`location-${prefix}-${index}`}
+                    value={parameter.location}
+                    onChange={(event) =>
+                      updateParameter(index, {
+                        location: event.target
+                          .value as ApiParameter["location"],
+                      })
+                    }
+                    className="min-h-11 w-full rounded-lg border bg-background px-3"
+                  >
+                    <option value="QUERY">Query</option>
+                    <option value="PATH">Path</option>
+                    {method === "POST" ? (
+                      <option value="BODY">Body</option>
+                    ) : null}
+                  </select>
+                </Field>
+                <Field label="Type" htmlFor={`type-${prefix}-${index}`}>
+                  <select
+                    id={`type-${prefix}-${index}`}
+                    value={parameter.type}
+                    onChange={(event) =>
+                      updateParameter(index, {
+                        type: event.target.value as ApiParameter["type"],
+                      })
+                    }
+                    className="min-h-11 w-full rounded-lg border bg-background px-3"
+                  >
+                    <option value="STRING">Text</option>
+                    <option value="NUMBER">Number</option>
+                    <option value="BOOLEAN">True / false</option>
+                  </select>
+                </Field>
+                <button
+                  type="button"
+                  aria-label={`Remove ${parameter.label}`}
+                  onClick={() =>
+                    setParameters((current) =>
+                      current.filter((_, itemIndex) => itemIndex !== index),
+                    )
+                  }
+                  className="mt-7 grid size-11 place-items-center rounded-lg text-muted-foreground hover:bg-red-50 hover:text-red-700"
+                >
+                  <Trash2 size={17} />
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="space-y-4 rounded-xl border bg-muted/30 p-4">
+            <div className="flex gap-3">
+              <KeyRound
+                className="mt-0.5 shrink-0 text-primary"
+                size={18}
+                aria-hidden="true"
+              />
+              <div>
+                <h3 className="font-medium">Authentication</h3>
+                <p className="text-sm text-muted-foreground">
+                  Configure credentials before testing. Secret values are
+                  encrypted when the tool is saved.
+                </p>
+              </div>
+            </div>
+            <Field label="Authentication type" htmlFor={`auth-${prefix}`}>
+              <select
+                id={`auth-${prefix}`}
+                value={authType}
+                onChange={(event) => {
+                  setAuthType(event.target.value as AuthType);
+                  setTested(false);
+                }}
+                className="min-h-11 w-full rounded-lg border bg-background px-3"
+              >
+                <option value="NONE">None</option>
+                <option value="QUERY_API_KEY">API key in query</option>
+                <option value="API_KEY">API key header</option>
+                <option value="BEARER">Bearer token</option>
+                <option value="BASIC">Basic authentication</option>
+                <option value="CUSTOM_HEADER">Custom header</option>
+              </select>
+            </Field>
+            {authType === "API_KEY" ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field
+                  label="API key header"
+                  htmlFor={`api-key-header-${prefix}`}
+                >
+                  <Input
+                    id={`api-key-header-${prefix}`}
+                    name="apiKeyHeaderName"
+                    placeholder="X-API-Key"
+                    onChange={() => setTested(false)}
+                    required={!value?.credentialPresent}
+                  />
+                </Field>
+                <Field label="API key" htmlFor={`api-key-${prefix}`}>
+                  <Input
+                    id={`api-key-${prefix}`}
+                    name="apiKey"
+                    type="password"
                     autoComplete="new-password"
+                    onChange={() => setTested(false)}
                     required={!value?.credentialPresent}
                   />
                 </Field>
               </div>
             ) : null}
-            <div className="flex flex-wrap justify-between gap-3">
-              <Button type="button" variant="ghost" onClick={() => setStep(0)}>
-                <ChevronLeft size={17} /> Back
-              </Button>
-              <Button type="submit" formAction={testAction} disabled={testing}>
-                <FlaskConical size={17} />
-                {testing ? "Testing API…" : "Test API"}
-              </Button>
+            {authType === "BEARER" ? (
+              <Field label="Bearer token" htmlFor={`bearer-${prefix}`}>
+                <Input
+                  id={`bearer-${prefix}`}
+                  name="bearerToken"
+                  type="password"
+                  autoComplete="new-password"
+                  onChange={() => setTested(false)}
+                  required={!value?.credentialPresent}
+                />
+              </Field>
+            ) : null}
+            {authType === "BASIC" ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Username" htmlFor={`basic-user-${prefix}`}>
+                  <Input
+                    id={`basic-user-${prefix}`}
+                    name="basicUsername"
+                    onChange={() => setTested(false)}
+                    required={!value?.credentialPresent}
+                  />
+                </Field>
+                <Field label="Password" htmlFor={`basic-password-${prefix}`}>
+                  <Input
+                    id={`basic-password-${prefix}`}
+                    name="basicPassword"
+                    type="password"
+                    autoComplete="new-password"
+                    onChange={() => setTested(false)}
+                    required={!value?.credentialPresent}
+                  />
+                </Field>
+              </div>
+            ) : null}
+            {authType === "CUSTOM_HEADER" ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Header name" htmlFor={`custom-name-${prefix}`}>
+                  <Input
+                    id={`custom-name-${prefix}`}
+                    name="customHeaderName"
+                    onChange={() => setTested(false)}
+                    required={!value?.credentialPresent}
+                  />
+                </Field>
+                <Field label="Header value" htmlFor={`custom-value-${prefix}`}>
+                  <Input
+                    id={`custom-value-${prefix}`}
+                    name="customHeaderValue"
+                    type="password"
+                    autoComplete="new-password"
+                    onChange={() => setTested(false)}
+                    required={!value?.credentialPresent}
+                  />
+                </Field>
+              </div>
+            ) : null}
+          </div>
+          {authType === "QUERY_API_KEY" ? (
+            <div className="grid gap-4 rounded-xl border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-900 dark:bg-amber-950/20 md:grid-cols-2">
+              <div className="flex gap-3 md:col-span-2">
+                <KeyRound
+                  className="mt-0.5 shrink-0 text-amber-700"
+                  size={18}
+                />
+                <div>
+                  <p className="font-medium">Query API key detected</p>
+                  <p className="text-sm text-muted-foreground">
+                    The key is encrypted and never exposed as a Chat input
+                    field.
+                  </p>
+                </div>
+              </div>
+              <Field
+                label="Query parameter"
+                htmlFor={`query-key-name-${prefix}`}
+              >
+                <Input
+                  id={`query-key-name-${prefix}`}
+                  value={queryApiKeyName}
+                  onChange={(event) => setQueryApiKeyName(event.target.value)}
+                  required
+                />
+              </Field>
+              <Field
+                label="API key"
+                htmlFor={`query-key-${prefix}`}
+                hint={
+                  value?.credentialPresent
+                    ? "Leave blank to keep the saved encrypted key."
+                    : undefined
+                }
+              >
+                <Input
+                  id={`query-key-${prefix}`}
+                  type="password"
+                  value={queryApiKey}
+                  onChange={(event) => {
+                    setQueryApiKey(event.target.value);
+                    setTested(false);
+                  }}
+                  autoComplete="new-password"
+                  required={!value?.credentialPresent}
+                />
+              </Field>
             </div>
-            {!testState?.ok ? <ActionMessage state={testState} /> : null}
-          </section>
-        ) : null}
+          ) : null}
+          <div className="flex flex-wrap justify-between gap-3">
+            <Button type="button" variant="ghost" onClick={() => setStep(0)}>
+              <ChevronLeft size={17} /> Back
+            </Button>
+            <Button type="submit" formAction={testAction} disabled={testing}>
+              <FlaskConical size={17} />
+              {testing ? "Testing API…" : "Test API"}
+            </Button>
+          </div>
+          {!testState?.ok ? <ActionMessage state={testState} /> : null}
+        </section>
 
         {step === 2 ? (
           <section className="space-y-5" aria-labelledby="test-output-title">
@@ -702,23 +816,6 @@ export function LegacyApiRegistryForm({
                   required
                 />
               </Field>
-              <Field label="Authentication" htmlFor={`auth-${prefix}`}>
-                <select
-                  id={`auth-${prefix}`}
-                  value={authType}
-                  onChange={(event) =>
-                    setAuthType(event.target.value as AuthType)
-                  }
-                  className="min-h-11 w-full rounded-lg border bg-background px-3"
-                >
-                  <option value="NONE">None</option>
-                  <option value="QUERY_API_KEY">API key in query</option>
-                  <option value="API_KEY">API key header</option>
-                  <option value="BEARER">Bearer token</option>
-                  <option value="BASIC">Basic authentication</option>
-                  <option value="CUSTOM_HEADER">Custom header</option>
-                </select>
-              </Field>
               <Field
                 label="When should Chat use this tool?"
                 htmlFor={`description-${prefix}`}
@@ -736,71 +833,6 @@ export function LegacyApiRegistryForm({
                 />
               </Field>
             </div>
-            {authType === "API_KEY" ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field
-                  label="API key header"
-                  htmlFor={`api-key-header-${prefix}`}
-                >
-                  <Input
-                    id={`api-key-header-${prefix}`}
-                    name="apiKeyHeaderName"
-                    placeholder="X-API-Key"
-                    required={!value?.credentialPresent}
-                  />
-                </Field>
-                <Field label="API key" htmlFor={`api-key-${prefix}`}>
-                  <Input
-                    id={`api-key-${prefix}`}
-                    name="apiKey"
-                    type="password"
-                    autoComplete="new-password"
-                    required={!value?.credentialPresent}
-                  />
-                </Field>
-              </div>
-            ) : null}
-            {authType === "BEARER" ? (
-              <Field label="Bearer token" htmlFor={`bearer-${prefix}`}>
-                <Input
-                  id={`bearer-${prefix}`}
-                  name="bearerToken"
-                  type="password"
-                  autoComplete="new-password"
-                  required={!value?.credentialPresent}
-                />
-              </Field>
-            ) : null}
-            {authType === "BASIC" ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Username" htmlFor={`basic-user-${prefix}`}>
-                  <Input id={`basic-user-${prefix}`} name="basicUsername" />
-                </Field>
-                <Field label="Password" htmlFor={`basic-password-${prefix}`}>
-                  <Input
-                    id={`basic-password-${prefix}`}
-                    name="basicPassword"
-                    type="password"
-                    autoComplete="new-password"
-                  />
-                </Field>
-              </div>
-            ) : null}
-            {authType === "CUSTOM_HEADER" ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Header name" htmlFor={`custom-name-${prefix}`}>
-                  <Input id={`custom-name-${prefix}`} name="customHeaderName" />
-                </Field>
-                <Field label="Header value" htmlFor={`custom-value-${prefix}`}>
-                  <Input
-                    id={`custom-value-${prefix}`}
-                    name="customHeaderValue"
-                    type="password"
-                    autoComplete="new-password"
-                  />
-                </Field>
-              </div>
-            ) : null}
             <div className="grid gap-4 lg:grid-cols-2">
               <Field label="Scope" htmlFor={`scope-${prefix}`}>
                 <select
