@@ -109,6 +109,38 @@ describe("Phase 6 Legacy API registry contracts", () => {
     );
   });
 
+  it("routes an NTSP circuit lookup and extracts the explicit query value", () => {
+    const plan = fallbackLegacyApiToolPlan(
+      [
+        {
+          id: "ntsp-order-api",
+          name: "NTSP Service Order",
+          description: "Read Service Order data from NTSP.",
+          baseUrl: "https://tsp.totbb.net",
+          parameterDefinitions: [
+            {
+              name: "query",
+              label: "Circuit number",
+              description: "Circuit number to look up",
+              location: "QUERY",
+              type: "STRING",
+              required: true,
+            },
+          ],
+        },
+      ],
+      "หาข้อมูลเลขวงจร 5332j5652 จาก NTSP",
+    );
+
+    expect(plan).toEqual({
+      intent: "API",
+      apiId: "ntsp-order-api",
+      parameters: { query: "5332j5652" },
+      clarification: null,
+      reason: "DETERMINISTIC_TOOL_MATCH",
+    });
+  });
+
   it("does not route an unrelated knowledge question to an API tool", () => {
     expect(
       fallbackLegacyApiToolPlan(

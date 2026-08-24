@@ -1057,6 +1057,81 @@ function weatherToolMatch(
   );
 }
 
+const genericApiToolTerms = new Set([
+  "a",
+  "an",
+  "api",
+  "current",
+  "data",
+  "fetch",
+  "for",
+  "from",
+  "get",
+  "information",
+  "live",
+  "lookup",
+  "order",
+  "orders",
+  "read",
+  "service",
+  "services",
+  "the",
+  "tool",
+  "tools",
+]);
+
+function apiToolTerms(value: string) {
+  return value
+    .toLocaleLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((term) => term.length > 1 && !genericApiToolTerms.has(term));
+}
+
+function apiToolMatchScore(
+  api: { name: string; description: string; baseUrl: string },
+  question: string,
+) {
+  const questionTerms = new Set(apiToolTerms(question));
+  const toolTerms = new Set(
+    apiToolTerms(`${api.name} ${api.description} ${api.baseUrl}`),
+  );
+  return [...questionTerms].filter((term) => toolTerms.has(term)).length;
+}
+
+function explicitRequiredApiParameters(
+  definitions: LegacyApiParameter[],
+  question: string,
+) {
+  const required = definitions.filter(
+    (parameter) => parameter.required && parameter.defaultValue === undefined,
+  );
+  if (required.length !== 1) return {};
+
+  const [parameter] = required;
+  if (parameter.type === "BOOLEAN") {
+    const matches = question.match(/\b(?:true|false)\b|(?:ใช่|ไม่ใช่)/giu) ?? [];
+    if (matches.length !== 1) return {};
+    return {
+      [parameter.name]: /^(?:true|ใช่)$/iu.test(matches[0]),
+    };
+  }
+
+  if (parameter.type === "NUMBER") {
+    const matches = question.match(/-?\d+(?:\.\d+)?/g) ?? [];
+    if (matches.length !== 1) return {};
+    const value = Number(matches[0]);
+    return Number.isFinite(value) ? { [parameter.name]: value } : {};
+  }
+
+  const identifiers =
+    question.match(
+      /\b(?=[A-Za-z0-9_-]{4,}\b)(?=[A-Za-z0-9_-]*[A-Za-z])(?=[A-Za-z0-9_-]*\d)[A-Za-z0-9_-]+\b/g,
+    ) ?? [];
+  return identifiers.length === 1
+    ? { [parameter.name]: identifiers[0] }
+    : {};
+}
+
 export function fallbackLegacyApiToolPlan(
   candidates: Array<{
     id: string;
@@ -1068,7 +1143,18 @@ export function fallbackLegacyApiToolPlan(
   question: string,
   forceApi = false,
 ) {
-  const matched = candidates.filter((api) => weatherToolMatch(api, question));
+  const weatherMatches = candidates.filter((api) =>
+    weatherToolMatch(api, question),
+  );
+  const scoredMatches = candidates
+    .map((api) => ({ api, score: apiToolMatchScore(api, question) }))
+    .filter(({ score }) => score > 0);
+  const topScore = Math.max(0, ...scoredMatches.map(({ score }) => score));
+  const matched = weatherMatches.length
+    ? weatherMatches
+    : scoredMatches
+        .filter(({ score }) => score === topScore)
+        .map(({ api }) => api);
   const selectable = matched.length ? matched : forceApi ? candidates : [];
   if (!selectable.length) return { intent: "OTHER" as const };
   if (selectable.length > 1)
@@ -1086,20 +1172,24 @@ export function fallbackLegacyApiToolPlan(
   const required = definitions.filter(
     (parameter) => parameter.required && parameter.defaultValue === undefined,
   );
-  if (required.length)
+  const supplied = explicitRequiredApiParameters(definitions, question);
+  const missing = required.filter(
+    (parameter) => !(parameter.name in supplied),
+  );
+  if (missing.length)
     return {
       intent: "CLARIFICATION" as const,
       apiId: selected.id,
-      parameters: {},
+      parameters: supplied,
       clarification: isThaiText(question)
-        ? `ก่อนเรียก ${selected.name} กรุณาระบุ ${required.map((parameter) => parameter.label).join(", ")}`
-        : `Before calling ${selected.name}, please provide ${required.map((parameter) => parameter.label).join(", ")}.`,
+        ? `ก่อนเรียก ${selected.name} กรุณาระบุ ${missing.map((parameter) => parameter.label).join(", ")}`
+        : `Before calling ${selected.name}, please provide ${missing.map((parameter) => parameter.label).join(", ")}.`,
       reason: "MISSING_REQUIRED_API_PARAMETERS",
     };
   return {
     intent: "API" as const,
     apiId: selected.id,
-    parameters: {},
+    parameters: supplied,
     clarification: null,
     reason: matched.length
       ? "DETERMINISTIC_TOOL_MATCH"

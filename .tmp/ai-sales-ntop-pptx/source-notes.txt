@@ -1,0 +1,8 @@
+All nine slides are derived from the user-approved PNG visuals in:
+/Users/rattananair/codes/ai-sales/docs/assets/ai-sales-ntop-executive
+
+The screenshots embedded in those visuals were supplied by the user:
+- AI-Sales Universal Chat screenshot
+- NTOP Pipeline & Forecast screenshot
+
+Visual direction: NT white/yellow executive presentation theme.

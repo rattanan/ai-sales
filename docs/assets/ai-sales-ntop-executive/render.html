@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI-Sales + NTOP Executive Visuals</title>
+    <style>
+      :root {
+        --yellow: #ffd536;
+        --yellow-strong: #ffc928;
+        --yellow-soft: #fff7cf;
+        --ink: #17191e;
+        --charcoal: #30343b;
+        --gray: #666b73;
+        --line: #dedfe2;
+        --white: #ffffff;
+        --mint: #59bfa7;
+        --orange: #ee7854;
+      }
+
+      * { box-sizing: border-box; }
+      html, body { margin: 0; width: 1600px; height: 900px; overflow: hidden; background: var(--white); }
+      body { font-family: Thonburi, "Noto Sans Thai", Arial, sans-serif; color: var(--ink); }
+      .slide { position: relative; width: 1600px; height: 900px; overflow: hidden; background: #fff; }
+      .topbar { position: absolute; inset: 0 0 auto 0; height: 16px; background: var(--yellow); }
+      .footer { position: absolute; left: 70px; right: 70px; bottom: 32px; display: flex; justify-content: space-between; align-items: center; color: #777b82; font-size: 15px; letter-spacing: .04em; }
+      .footer::before { content: ""; position: absolute; top: -18px; left: 0; right: 0; height: 1px; background: #ececef; }
+      .nt-mark { display: flex; align-items: center; gap: 12px; font-weight: 700; color: var(--charcoal); }
+      .nt-mark img { width: 56px; height: 40px; object-fit: contain; }
+      .page-no { font-weight: 700; color: var(--ink); }
+      .content { position: absolute; inset: 64px 72px 90px; }
+      .eyebrow { color: #8a6500; font-weight: 700; font-size: 18px; letter-spacing: .06em; text-transform: uppercase; }
+      h1 { margin: 12px 0 0; font-size: 58px; line-height: 1.16; letter-spacing: -.025em; max-width: 1380px; }
+      h2 { margin: 0; font-size: 38px; line-height: 1.2; }
+      p { margin: 0; }
+      .subtitle { margin-top: 20px; color: var(--gray); font-size: 25px; line-height: 1.5; max-width: 950px; }
+      .yellow-line { width: 92px; height: 8px; border-radius: 8px; background: var(--yellow); margin-top: 24px; }
+      .pill { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 18px; border: 1px solid #d3d4d7; border-radius: 999px; font-size: 18px; color: var(--charcoal); background: #fff; }
+      .pill.yellow { background: var(--yellow); border-color: var(--yellow); color: #171717; font-weight: 700; }
+      .browser-frame { position: relative; background: #fff; border: 1px solid #d7d8dc; border-radius: 22px; overflow: hidden; box-shadow: 0 18px 45px rgba(24, 27, 31, .14); }
+      .browser-frame::before { content: ""; display: block; height: 30px; background: #f4f4f5; border-bottom: 1px solid #dedfe2; }
+      .browser-frame::after { content: "●  ●  ●"; position: absolute; top: 5px; left: 16px; color: #afb2b7; font-size: 12px; letter-spacing: 4px; }
+      .browser-frame img { display: block; width: 100%; height: calc(100% - 30px); object-fit: cover; }
+      .label { font-size: 17px; font-weight: 700; color: var(--charcoal); }
+      .big-number { font-size: 92px; font-weight: 800; letter-spacing: -.05em; line-height: 1; }
+      .dot-grid { position: absolute; width: 250px; height: 190px; opacity: .26; background-image: radial-gradient(#a9a9aa 1.7px, transparent 1.7px); background-size: 22px 22px; }
+      .yellow-orb { position: absolute; border-radius: 50%; background: var(--yellow); }
+      .thin-arrow { height: 2px; background: var(--charcoal); position: relative; }
+      .thin-arrow::after { content: ""; position: absolute; right: -1px; top: -6px; width: 12px; height: 12px; border-right: 2px solid var(--charcoal); border-top: 2px solid var(--charcoal); transform: rotate(45deg); }
+
+      /* Cover */
+      .cover { background: linear-gradient(112deg, #fff 0 58%, #fff7cf 58% 100%); }
+      .cover .content { inset: 70px 74px 60px; display: grid; grid-template-columns: 56% 44%; align-items: center; }
+      .cover h1 { font-size: 78px; max-width: 760px; }
+      .cover .lead { margin-top: 28px; font-size: 28px; color: var(--charcoal); line-height: 1.5; max-width: 680px; }
+      .cover .tags { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 42px; }
+      .cover .visual { position: relative; height: 700px; }
+      .cover .visual .yellow-orb { width: 520px; height: 520px; right: -80px; top: 70px; opacity: .92; }
+      .cover .ai-shot { position: absolute; width: 550px; height: 345px; left: -15px; top: 76px; transform: rotate(-3deg); z-index: 2; }
+      .cover .ntop-shot { position: absolute; width: 510px; height: 310px; right: -36px; bottom: 78px; transform: rotate(3.5deg); z-index: 3; }
+      .cover .ai-shot img { object-position: 55% 50%; }
+      .cover .ntop-shot img { object-position: 50% 50%; }
+
+      /* Problem */
+      .problem-layout { margin-top: 46px; display: grid; grid-template-columns: 58% 42%; gap: 60px; align-items: center; }
+      .fragments { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+      .fragment { position: relative; min-height: 170px; padding: 30px 28px; border: 2px solid #e2e3e5; border-radius: 24px; background: #fff; }
+      .fragment:nth-child(2), .fragment:nth-child(3) { transform: translateY(18px); }
+      .fragment .index { color: var(--orange); font-size: 18px; font-weight: 800; }
+      .fragment h2 { font-size: 30px; margin-top: 16px; }
+      .fragment p { color: var(--gray); font-size: 20px; margin-top: 8px; line-height: 1.45; }
+      .problem-callout { padding-left: 22px; border-left: 8px solid var(--yellow); }
+      .problem-callout .big { font-size: 43px; line-height: 1.35; font-weight: 700; }
+      .problem-callout p { margin-top: 22px; font-size: 23px; color: var(--gray); line-height: 1.5; }
+
+      /* Relationship */
+      .system-pair { margin-top: 48px; display: grid; grid-template-columns: 1fr 170px 1fr; align-items: center; }
+      .system-panel { position: relative; height: 500px; }
+      .system-panel .browser-frame { width: 100%; height: 360px; }
+      .system-panel .browser-frame img { object-position: center; }
+      .system-caption { display: grid; grid-template-columns: 125px 1fr; gap: 22px; margin-top: 24px; align-items: start; }
+      .system-name { font-size: 27px; font-weight: 800; }
+      .system-caption p { color: var(--gray); font-size: 21px; line-height: 1.5; }
+      .bridge { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+      .bridge .circle { width: 92px; height: 92px; display: grid; place-items: center; border-radius: 50%; background: var(--yellow); font-size: 38px; font-weight: 800; }
+      .bridge .arrow2 { width: 120px; height: 3px; background: var(--charcoal); position: relative; }
+      .bridge .arrow2::before, .bridge .arrow2::after { content: ""; position: absolute; width: 13px; height: 13px; top: -6px; border-top: 3px solid var(--charcoal); }
+      .bridge .arrow2::before { left: 0; border-left: 3px solid var(--charcoal); transform: rotate(-45deg); }
+      .bridge .arrow2::after { right: 0; border-right: 3px solid var(--charcoal); transform: rotate(45deg); }
+      .relationship .left-shot img { object-position: 52% 48%; }
+      .relationship .right-shot img { object-position: center; }
+
+      /* Grounded answer */
+      .answer-layout { margin-top: 42px; display: grid; grid-template-columns: 42% 58%; gap: 58px; align-items: center; }
+      .question-bubble { position: relative; background: var(--yellow); border-radius: 42px 42px 42px 10px; padding: 50px 46px; font-size: 35px; line-height: 1.45; font-weight: 700; }
+      .question-bubble::after { content: ""; position: absolute; left: 0; bottom: -34px; width: 42px; height: 42px; background: var(--yellow); clip-path: polygon(0 0,100% 0,0 100%); }
+      .answer-copy { margin-top: 70px; padding-left: 8px; }
+      .answer-copy strong { display: block; font-size: 32px; }
+      .answer-copy p { margin-top: 12px; color: var(--gray); font-size: 22px; line-height: 1.5; }
+      .answer-shot { height: 470px; }
+      .answer-shot .browser-frame { height: 100%; }
+      .answer-shot img { object-position: 57% 42%; }
+      .citation-strip { margin-top: 18px; display: flex; gap: 12px; }
+
+      /* Confirmation */
+      .confirm-layout { margin-top: 48px; display: grid; grid-template-columns: 48% 52%; gap: 74px; align-items: center; }
+      .action-card { border: 2px solid #e1e2e4; border-radius: 30px; padding: 34px; background: #fff; box-shadow: 0 20px 50px rgba(20,22,26,.08); }
+      .action-head { display: flex; align-items: center; gap: 18px; }
+      .db-icon { width: 64px; height: 64px; border-radius: 18px; background: var(--yellow-soft); display: grid; place-items: center; }
+      .db-icon svg { width: 34px; height: 34px; stroke: #806000; }
+      .action-card h2 { font-size: 30px; }
+      .action-card .summary { margin-top: 26px; padding: 24px; background: #f7f7f8; border-radius: 18px; font-size: 22px; line-height: 1.5; color: var(--charcoal); }
+      .action-card .notice { margin-top: 20px; color: var(--gray); font-size: 18px; }
+      .action-buttons { display: flex; gap: 14px; margin-top: 26px; }
+      .button { padding: 14px 22px; border-radius: 12px; border: 1px solid #cfd0d4; font-size: 19px; font-weight: 700; }
+      .button.primary { background: var(--yellow); border-color: var(--yellow); }
+      .steps { display: flex; flex-direction: column; gap: 22px; }
+      .step { display: grid; grid-template-columns: 76px 1fr; gap: 22px; align-items: center; }
+      .step-no { width: 68px; height: 68px; border-radius: 50%; display: grid; place-items: center; background: var(--yellow); font-size: 27px; font-weight: 800; }
+      .step h2 { font-size: 28px; }
+      .step p { color: var(--gray); font-size: 20px; line-height: 1.45; margin-top: 5px; }
+      .step + .step { position: relative; }
+      .step + .step::before { content: ""; position: absolute; left: 33px; top: -23px; width: 2px; height: 24px; background: #c8c9cc; }
+
+      /* Sales benefits */
+      .benefit-layout { margin-top: 38px; display: grid; grid-template-columns: 64% 36%; gap: 54px; align-items: center; }
+      .compare-list { display: flex; flex-direction: column; gap: 20px; }
+      .compare-row { display: grid; grid-template-columns: 1fr 90px 1fr; align-items: center; min-height: 130px; border-bottom: 1px solid #e4e4e6; }
+      .compare-row:last-child { border-bottom: 0; }
+      .old { color: #7b7f86; font-size: 24px; text-decoration: line-through; text-decoration-color: #ee7854; text-decoration-thickness: 3px; }
+      .new { font-size: 29px; font-weight: 700; }
+      .compare-arrow { display: grid; place-items: center; font-size: 34px; color: #846300; }
+      .time-callout { min-height: 470px; border-radius: 50% 50% 20px 50%; background: var(--yellow); padding: 70px 42px; display: flex; flex-direction: column; justify-content: center; }
+      .time-callout .small { font-size: 23px; font-weight: 700; }
+      .time-callout .main { margin-top: 12px; font-size: 48px; font-weight: 800; line-height: 1.25; }
+      .time-callout .up { margin-top: 20px; font-size: 76px; line-height: 1; }
+
+      /* Executive benefits */
+      .exec-map { position: relative; height: 550px; margin-top: 28px; }
+      .exec-core { position: absolute; left: 50%; top: 52%; transform: translate(-50%,-50%); width: 360px; height: 360px; border-radius: 50%; display: grid; place-items: center; text-align: center; padding: 60px; background: var(--yellow); z-index: 2; }
+      .exec-core .small { font-size: 21px; font-weight: 700; }
+      .exec-core .main { margin-top: 12px; font-size: 37px; line-height: 1.3; font-weight: 800; }
+      .exec-item { position: absolute; width: 350px; padding: 24px 28px; border-left: 6px solid var(--yellow); background: #fff; }
+      .exec-item h2 { font-size: 29px; }
+      .exec-item p { margin-top: 8px; color: var(--gray); font-size: 20px; line-height: 1.45; }
+      .exec-item.one { left: 45px; top: 70px; }
+      .exec-item.two { right: 35px; top: 70px; }
+      .exec-item.three { left: 65px; bottom: 40px; }
+      .exec-item.four { right: 45px; bottom: 40px; }
+      .exec-map .ring { position: absolute; left: 50%; top: 52%; transform: translate(-50%,-50%); width: 650px; height: 650px; border-radius: 50%; border: 1px dashed #c8c9cc; }
+
+      /* Trust */
+      .trust-layout { margin-top: 42px; display: grid; grid-template-columns: 49% 51%; gap: 62px; align-items: center; }
+      .secure-shot { height: 480px; }
+      .secure-shot .browser-frame { height: 100%; }
+      .secure-shot img { object-position: center; }
+      .trust-list { display: flex; flex-direction: column; gap: 18px; }
+      .trust-item { display: grid; grid-template-columns: 62px 1fr; gap: 18px; align-items: center; padding: 18px 0; border-bottom: 1px solid #e7e7e9; }
+      .trust-item:last-child { border-bottom: 0; }
+      .trust-icon { width: 54px; height: 54px; border-radius: 50%; background: var(--yellow); display: grid; place-items: center; }
+      .trust-icon svg { width: 28px; height: 28px; fill: none; stroke: var(--ink); stroke-width: 2.4; }
+      .trust-item h2 { font-size: 26px; }
+      .trust-item p { color: var(--gray); font-size: 19px; margin-top: 4px; }
+
+      /* Pilot */
+      .timeline { margin-top: 60px; display: grid; grid-template-columns: repeat(3,1fr); gap: 0; position: relative; }
+      .timeline::before { content: ""; position: absolute; left: 16%; right: 16%; top: 56px; height: 4px; background: #d8d9dc; }
+      .phase { position: relative; text-align: center; padding: 0 38px; }
+      .phase-no { position: relative; z-index: 2; margin: 0 auto; width: 112px; height: 112px; border-radius: 50%; display: grid; place-items: center; background: var(--yellow); font-size: 31px; font-weight: 800; }
+      .phase h2 { margin-top: 24px; font-size: 30px; }
+      .phase p { color: var(--gray); font-size: 20px; line-height: 1.45; margin-top: 10px; }
+      .metrics { margin-top: 48px; display: flex; justify-content: center; gap: 18px; }
+      .metric { padding: 15px 22px; border: 1px solid #d6d7da; border-radius: 999px; font-size: 17px; }
+      .decision { margin-top: 42px; min-height: 92px; border-radius: 18px; background: var(--yellow); display: flex; justify-content: space-between; align-items: center; padding: 20px 32px; }
+      .decision strong { font-size: 28px; }
+      .decision span { font-size: 20px; color: #584700; }
+    </style>
+  </head>
+  <body>
+    <main id="slide" class="slide"></main>
+    <script>
+      const ASSET = "./";
+      const logo = "file:///Users/rattananair/codes/ntop/public/nt-logo.png";
+      const aiShot = ASSET + "source-ai-sales-chat.png";
+      const ntopShot = ASSET + "source-ntop-pipeline.png";
+      const svgDb = `<svg viewBox="0 0 24 24" fill="none"><ellipse cx="12" cy="5" rx="7" ry="3"/><path d="M5 5v6c0 1.7 3.1 3 7 3s7-1.3 7-3V5"/><path d="M5 11v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></svg>`;
+      const svgCheck = `<svg viewBox="0 0 24 24"><path d="M5 12.5l4.2 4.2L19 7"/></svg>`;
+      const svgShield = `<svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.7-2.8 8.3-7 10-4.2-1.7-7-5.3-7-10V6l7-3z"/><path d="M8.5 12l2.2 2.2 4.8-5"/></svg>`;
+      const svgUser = `<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"/><path d="M5.5 20c.5-4 2.7-6 6.5-6s6 2 6.5 6"/></svg>`;
+      const svgHistory = `<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2-5.3L4 9"/><path d="M4 4v5h5"/><path d="M12 7v5l3 2"/></svg>`;
+
+      function chrome(img, cls="") { return `<div class="browser-frame ${cls}"><img src="${img}" alt="" /></div>`; }
+      function footer(n) { return `<div class="footer"><div class="nt-mark"><img src="${logo}" alt="NT"/><span>AI-Sales + NTOP</span></div><span class="page-no">${n}</span></div>`; }
+      function shell(inner, n, cls="") { return `<section class="slide ${cls}"><div class="topbar"></div>${inner}${footer(n)}</section>`; }
+
+      const slides = [
+        shell(`<div class="content"><div class="cover-copy"><div class="eyebrow">Enterprise Sales Intelligence</div><h1>AI-Sales + NTOP</h1><p class="lead">ผู้ช่วยขายที่รู้ข้อมูล ตอบมีหลักฐาน<br/>และบันทึกอย่างปลอดภัย</p><div class="yellow-line"></div><div class="tags"><span class="pill yellow">ทำงานเร็วขึ้น</span><span class="pill">ตัดสินใจดีขึ้น</span><span class="pill">ควบคุมได้</span></div></div><div class="visual"><div class="yellow-orb"></div>${chrome(aiShot,"ai-shot")}${chrome(ntopShot,"ntop-shot")}</div></div>`, "", "cover"),
+
+        shell(`<div class="content"><div class="eyebrow">เหตุผลที่ต้องเปลี่ยน</div><h1>วันนี้ ทีมขายเสียเวลาไปกับการค้นหาและตรวจสอบข้อมูล</h1><div class="problem-layout"><div class="fragments"><div class="fragment"><div class="index">01</div><h2>ค้นเอกสาร</h2><p>ข้อมูลกระจายหลายที่และไม่รู้ว่าไฟล์ไหนล่าสุด</p></div><div class="fragment"><div class="index">02</div><h2>ถามคน</h2><p>ความรู้สำคัญขึ้นอยู่กับว่าใครว่างตอบ</p></div><div class="fragment"><div class="index">03</div><h2>เปิดหลายระบบ</h2><p>ต้องสลับหน้าจอเพื่อประกอบข้อมูลให้ครบ</p></div><div class="fragment"><div class="index">04</div><h2>คีย์ข้อมูลซ้ำ</h2><p>มีโอกาสตกหล่นและใช้ข้อมูลไม่ตรงกัน</p></div></div><div class="problem-callout"><div class="big">เวลาที่ควรใช้กับลูกค้า<br/>กลับหมดไปกับการตามหาข้อมูล</div><p>โอกาสของเราคือทำให้ความรู้และข้อมูลขายพร้อมใช้ในจุดเดียว</p></div></div></div>`, "01"),
+
+        shell(`<div class="content relationship"><div class="eyebrow">ภาพการทำงานร่วมกัน</div><h1>สองระบบทำหน้าที่ต่างกัน แต่สร้างประสบการณ์เดียวกัน</h1><div class="system-pair"><div class="system-panel"><div class="left-shot">${chrome(aiShot)}</div><div class="system-caption"><div class="system-name">AI-Sales</div><p>ค้นความรู้ สรุปข้อมูล และเตรียมข้อเสนอให้ผู้ใช้ตรวจ</p></div></div><div class="bridge"><div class="circle">+</div><div class="arrow2"></div><span class="label">ข้อมูลสด</span></div><div class="system-panel"><div class="right-shot">${chrome(ntopShot)}</div><div class="system-caption"><div class="system-name">NTOP</div><p>เก็บข้อมูลจริง ควบคุมขั้นตอน สิทธิ์ และประวัติการทำงาน</p></div></div></div></div>`, "02"),
+
+        shell(`<div class="content"><div class="eyebrow">ประสบการณ์ผู้ใช้</div><h1>ถามเป็นภาษาธรรมชาติ ได้คำตอบจากข้อมูลที่เชื่อถือได้</h1><div class="answer-layout"><div><div class="question-bubble">“ก่อนเข้าพบลูกค้า ABC<br/>มีเรื่องอะไรที่ต้องรู้บ้าง?”</div><div class="answer-copy"><strong>ตอบพร้อมบริบทและแหล่งอ้างอิง</strong><p>ผู้ใช้ไม่ต้องค้นทีละระบบ และยังตรวจสอบที่มาของคำตอบได้</p></div></div><div><div class="answer-shot">${chrome(aiShot)}</div><div class="citation-strip"><span class="pill yellow">ข้อมูลตามสิทธิ์</span><span class="pill">แหล่งอ้างอิงชัดเจน</span><span class="pill">ไม่เดาเมื่อข้อมูลไม่พอ</span></div></div></div></div>`, "03"),
+
+        shell(`<div class="content"><div class="eyebrow">Human in control</div><h1>AI เตรียมงานให้ แต่ผู้ใช้เป็นผู้ตัดสินใจก่อนบันทึก</h1><div class="confirm-layout"><div class="action-card"><div class="action-head"><div class="db-icon">${svgDb}</div><div><div class="label">รายการที่ AI แนะนำ</div><h2>สร้าง Opportunity: บริษัท ABC</h2></div></div><div class="summary">สนใจ SD-WAN<br/>มูลค่าประมาณ 5 ล้านบาท<br/>ขั้นตอนถัดไป: ยืนยันความต้องการกับลูกค้า</div><div class="notice">ยังไม่มีข้อมูลถูกบันทึกจนกว่าผู้ใช้จะยืนยัน</div><div class="action-buttons"><div class="button primary">ยืนยันใน NTOP</div><div class="button">ยกเลิก</div></div></div><div class="steps"><div class="step"><div class="step-no">1</div><div><h2>AI-Sales เตรียมข้อเสนอ</h2><p>รวบรวมข้อมูลที่เกี่ยวข้องและตรวจรายการเดิม</p></div></div><div class="step"><div class="step-no">2</div><div><h2>ผู้ใช้ตรวจและยืนยัน</h2><p>แก้ไขหรือยกเลิกได้ก่อนเกิดผลในระบบ</p></div></div><div class="step"><div class="step-no">3</div><div><h2>NTOP บันทึกอย่างเป็นทางการ</h2><p>ใช้สิทธิ์ของผู้ใช้และเก็บประวัติครบถ้วน</p></div></div></div></div></div>`, "04"),
+
+        shell(`<div class="content"><div class="eyebrow">ประโยชน์ต่อทีมขาย</div><h1>ลดงานค้นหาและงานซ้ำ เพื่อเพิ่มเวลาที่ใช้กับลูกค้า</h1><div class="benefit-layout"><div class="compare-list"><div class="compare-row"><div class="old">ค้นเอกสารทีละแหล่ง</div><div class="compare-arrow">→</div><div class="new">ถามครั้งเดียว ได้ข้อมูลพร้อมบริบท</div></div><div class="compare-row"><div class="old">สลับหลายหน้าจอ</div><div class="compare-arrow">→</div><div class="new">เห็นข้อมูลที่เกี่ยวข้องในจุดเดียว</div></div><div class="compare-row"><div class="old">คีย์ข้อมูลขายซ้ำ</div><div class="compare-arrow">→</div><div class="new">ตรวจข้อเสนอแล้วบันทึกต่อได้ทันที</div></div></div><div class="time-callout"><div class="small">ผลที่ต้องการ</div><div class="main">มีเวลาพูดคุย<br/>และดูแลลูกค้ามากขึ้น</div><div class="up">↑</div></div></div></div>`, "05"),
+
+        shell(`<div class="content"><div class="eyebrow">ประโยชน์ต่อผู้บริหาร</div><h1>เห็นสัญญาณสำคัญจากข้อมูลชุดเดียวที่ตรวจสอบได้</h1><div class="exec-map"><div class="ring"></div><div class="exec-core"><div><div class="small">MANAGEMENT VIEW</div><div class="main">เห็นภาพธุรกิจ<br/>และตัดสินใจได้เร็วขึ้น</div></div></div><div class="exec-item one"><h2>Pipeline</h2><p>เห็นโอกาสขายและงานที่ต้องเร่งติดตาม</p></div><div class="exec-item two"><h2>Risk</h2><p>เห็นข้อมูลไม่ครบ งานค้าง และความเสี่ยงก่อนสายเกินไป</p></div><div class="exec-item three"><h2>Knowledge</h2><p>เห็นคำถามที่เกิดซ้ำและช่องว่างความรู้ขององค์กร</p></div><div class="exec-item four"><h2>Governance</h2><p>เห็นว่าใครทำอะไร เมื่อไร และใช้ข้อมูลจากที่ใด</p></div></div></div>`, "06"),
+
+        shell(`<div class="content"><div class="eyebrow">Trust by design</div><h1>ข้อมูลยังปลอดภัย และทุกการดำเนินการตรวจสอบย้อนหลังได้</h1><div class="trust-layout"><div class="secure-shot">${chrome(ntopShot)}</div><div class="trust-list"><div class="trust-item"><div class="trust-icon">${svgUser}</div><div><h2>เห็นข้อมูลตามสิทธิ์ของผู้ใช้</h2><p>ไม่มีการเปิดข้อมูลข้ามทีม หรือนอกขอบเขตที่ได้รับอนุญาต</p></div></div><div class="trust-item"><div class="trust-icon">${svgShield}</div><div><h2>ข้อมูลสำคัญได้รับการปกป้อง</h2><p>Credential และข้อมูลอ่อนไหวไม่ถูกแสดงหรือบันทึกโดยไม่จำเป็น</p></div></div><div class="trust-item"><div class="trust-icon">${svgCheck}</div><div><h2>ยืนยันก่อนเกิดผลในระบบ</h2><p>AI ไม่สร้างหรือแก้ไขข้อมูลขายโดยอัตโนมัติ</p></div></div><div class="trust-item"><div class="trust-icon">${svgHistory}</div><div><h2>ตรวจสอบย้อนหลังได้</h2><p>เก็บผู้ดำเนินการ เวลา ผลลัพธ์ และประวัติสำคัญครบถ้วน</p></div></div></div></div></div>`, "07"),
+
+        shell(`<div class="content"><div class="eyebrow">แนวทางเริ่มใช้งาน</div><h1>เริ่มจาก Pilot 90 วันที่วัดผลได้ ก่อนขยายทั้งองค์กร</h1><div class="timeline"><div class="phase"><div class="phase-no">30 วัน</div><h2>เตรียม</h2><p>เลือกทีมทดลอง กำหนด use case และจัดแหล่งความรู้ที่จำเป็น</p></div><div class="phase"><div class="phase-no">60 วัน</div><h2>ทดลองใช้จริง</h2><p>ใช้กับการเตรียมพบลูกค้า ค้นข้อมูล และสร้างรายการขาย</p></div><div class="phase"><div class="phase-no">90 วัน</div><h2>ประเมินและขยาย</h2><p>วัดผล รับ feedback และตัดสินใจขยายตามความพร้อม</p></div></div><div class="metrics"><span class="metric">เวลาค้นและเตรียมข้อมูล</span><span class="metric">ความครบถ้วนของ Next Action</span><span class="metric">การใช้งานจริง</span><span class="metric">ความพึงพอใจของผู้ใช้</span></div><div class="decision"><strong>ข้อเสนอเพื่อการตัดสินใจ: อนุมัติ Pilot 90 วัน</strong><span>เริ่มเล็ก · วัดผลจริง · ขยายอย่างมั่นใจ</span></div></div>`, "08")
+      ];
+
+      const index = Math.max(0, Math.min(slides.length - 1, Number(new URLSearchParams(location.search).get("s") || 0)));
+      document.getElementById("slide").outerHTML = slides[index];
+    </script>
+  </body>
+</html>
