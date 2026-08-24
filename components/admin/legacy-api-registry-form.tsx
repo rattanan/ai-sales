@@ -186,8 +186,15 @@ export function LegacyApiRegistryForm({
   );
   const [testValues, setTestValues] = useState<Record<string, string>>({});
   const [authType, setAuthType] = useState<AuthType>(value?.authType ?? "NONE");
+  const [apiKeyHeaderName, setApiKeyHeaderName] = useState("");
+  const [apiKey, setApiKey] = useState("");
   const [queryApiKeyName, setQueryApiKeyName] = useState("appid");
   const [queryApiKey, setQueryApiKey] = useState("");
+  const [bearerToken, setBearerToken] = useState("");
+  const [basicUsername, setBasicUsername] = useState("");
+  const [basicPassword, setBasicPassword] = useState("");
+  const [customHeaderName, setCustomHeaderName] = useState("");
+  const [customHeaderValue, setCustomHeaderValue] = useState("");
   const [sourceScope, setSourceScope] = useState<"GLOBAL" | "SELECTED_BOTS">(
     value?.sourceScope ?? (bots.length === 0 ? "GLOBAL" : "SELECTED_BOTS"),
   );
@@ -374,6 +381,14 @@ export function LegacyApiRegistryForm({
             setStep(2);
           }
         }}
+        onInvalid={(event) => {
+          if (
+            (event.target as HTMLElement).closest(
+              '[data-api-input-step="true"]',
+            )
+          )
+            setStep(1);
+        }}
       >
         <input type="hidden" name="legacyApiId" value={value?.id ?? ""} />
         <input
@@ -480,6 +495,7 @@ export function LegacyApiRegistryForm({
         <section
           className="space-y-5"
           aria-labelledby="input-fields-title"
+          data-api-input-step="true"
           hidden={step !== 1}
         >
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -630,7 +646,11 @@ export function LegacyApiRegistryForm({
                     id={`api-key-header-${prefix}`}
                     name="apiKeyHeaderName"
                     placeholder="X-API-Key"
-                    onChange={() => setTested(false)}
+                    value={apiKeyHeaderName}
+                    onChange={(event) => {
+                      setApiKeyHeaderName(event.target.value);
+                      setTested(false);
+                    }}
                     required={!value?.credentialPresent}
                   />
                 </Field>
@@ -640,7 +660,11 @@ export function LegacyApiRegistryForm({
                     name="apiKey"
                     type="password"
                     autoComplete="new-password"
-                    onChange={() => setTested(false)}
+                    value={apiKey}
+                    onChange={(event) => {
+                      setApiKey(event.target.value);
+                      setTested(false);
+                    }}
                     required={!value?.credentialPresent}
                   />
                 </Field>
@@ -653,7 +677,11 @@ export function LegacyApiRegistryForm({
                   name="bearerToken"
                   type="password"
                   autoComplete="new-password"
-                  onChange={() => setTested(false)}
+                  value={bearerToken}
+                  onChange={(event) => {
+                    setBearerToken(event.target.value);
+                    setTested(false);
+                  }}
                   required={!value?.credentialPresent}
                 />
               </Field>
@@ -664,7 +692,11 @@ export function LegacyApiRegistryForm({
                   <Input
                     id={`basic-user-${prefix}`}
                     name="basicUsername"
-                    onChange={() => setTested(false)}
+                    value={basicUsername}
+                    onChange={(event) => {
+                      setBasicUsername(event.target.value);
+                      setTested(false);
+                    }}
                     required={!value?.credentialPresent}
                   />
                 </Field>
@@ -674,7 +706,11 @@ export function LegacyApiRegistryForm({
                     name="basicPassword"
                     type="password"
                     autoComplete="new-password"
-                    onChange={() => setTested(false)}
+                    value={basicPassword}
+                    onChange={(event) => {
+                      setBasicPassword(event.target.value);
+                      setTested(false);
+                    }}
                     required={!value?.credentialPresent}
                   />
                 </Field>
@@ -686,7 +722,11 @@ export function LegacyApiRegistryForm({
                   <Input
                     id={`custom-name-${prefix}`}
                     name="customHeaderName"
-                    onChange={() => setTested(false)}
+                    value={customHeaderName}
+                    onChange={(event) => {
+                      setCustomHeaderName(event.target.value);
+                      setTested(false);
+                    }}
                     required={!value?.credentialPresent}
                   />
                 </Field>
@@ -696,7 +736,11 @@ export function LegacyApiRegistryForm({
                     name="customHeaderValue"
                     type="password"
                     autoComplete="new-password"
-                    onChange={() => setTested(false)}
+                    value={customHeaderValue}
+                    onChange={(event) => {
+                      setCustomHeaderValue(event.target.value);
+                      setTested(false);
+                    }}
                     required={!value?.credentialPresent}
                   />
                 </Field>
@@ -725,7 +769,10 @@ export function LegacyApiRegistryForm({
                 <Input
                   id={`query-key-name-${prefix}`}
                   value={queryApiKeyName}
-                  onChange={(event) => setQueryApiKeyName(event.target.value)}
+                  onChange={(event) => {
+                    setQueryApiKeyName(event.target.value);
+                    setTested(false);
+                  }}
                   required
                 />
               </Field>

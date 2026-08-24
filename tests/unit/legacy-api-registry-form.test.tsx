@@ -23,8 +23,8 @@ import { LegacyApiRegistryForm } from "@/components/admin/legacy-api-registry-fo
 describe("LegacyApiRegistryForm", () => {
   afterEach(cleanup);
 
-  it("collects API key header credentials before the test action", () => {
-    render(<LegacyApiRegistryForm bots={[]} />);
+  it("keeps API key header credentials after a server-action form reset", () => {
+    const view = render(<LegacyApiRegistryForm bots={[]} />);
 
     fireEvent.change(
       screen.getByLabelText(/API endpoint URL/, { selector: "input" }),
@@ -37,6 +37,10 @@ describe("LegacyApiRegistryForm", () => {
     );
     fireEvent.click(
       screen.getByRole("button", { name: "Detect input fields" }),
+    );
+    fireEvent.change(
+      screen.getByLabelText(/^Query(?: \*)?$/, { selector: "input" }),
+      { target: { value: "4569J5771" } },
     );
 
     const authenticationType = screen.getByLabelText(/Authentication type/, {
@@ -64,5 +68,13 @@ describe("LegacyApiRegistryForm", () => {
     expect(formData.get("authType")).toBe("API_KEY");
     expect(formData.get("apiKeyHeaderName")).toBe("x-api-key");
     expect(formData.get("apiKey")).toBe("test-secret");
+
+    form!.reset();
+    view.rerender(<LegacyApiRegistryForm bots={[]} />);
+
+    const resetFormData = new FormData(form!);
+    expect(resetFormData.get("apiKeyHeaderName")).toBe("x-api-key");
+    expect(resetFormData.get("apiKey")).toBe("test-secret");
+    expect(form!.checkValidity()).toBe(true);
   });
 });
