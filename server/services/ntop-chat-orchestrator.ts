@@ -85,6 +85,7 @@ type LookupPlan = {
   queries: string[];
   label: string;
   filter: boolean;
+  listAll: boolean;
 };
 
 const LOOKUP_REQUEST =
@@ -109,7 +110,12 @@ function requestedLookupKind(message: string): LookupKind | null {
   if (/\bopportunit(?:y|ies)\b|โอกาสขาย/iu.test(message)) return "OPPORTUNITY";
   if (/\bquotation\b|\bquote\b|ใบเสนอราคา/iu.test(message)) return "QUOTATION";
   if (/\bproduct\b|สินค้า|ผลิตภัณฑ์/iu.test(message)) return "PRODUCT";
-  if (/\bcustomer\b|ลูกค้า/iu.test(message)) return "CUSTOMER";
+  if (
+    /\bcustomer\b|(?:ข้อมูล|รายชื่อ|รายการ|รายละเอียด)\s*(?:ของ\s*)?ลูกค้า|(?:ค้นหา|ค้น|หา|ดู|ดึง|แสดง)\s*(?:ข้อมูล(?:ของ)?\s*)?ลูกค้า/iu.test(
+      message,
+    )
+  )
+    return "CUSTOMER";
   return null;
 }
 
@@ -142,6 +148,31 @@ function explicitNtopQuery(message: string) {
     .trim();
 }
 
+function isListAllQuery(query: string) {
+  const fillers = new Set([
+    "all",
+    "available",
+    "currently",
+    "now",
+    "ขณะนี้",
+    "ตอนนี้",
+    "ตอนนี้มี",
+    "ทั้งหมด",
+    "บ้าง",
+    "มี",
+    "มีอะไรบ้าง",
+    "รายการ",
+    "อะไร",
+    "อะไรบ้าง",
+  ]);
+  const tokens = query
+    .replace(/[?？]/gu, " ")
+    .split(/\s+/u)
+    .map((token) => token.toLocaleLowerCase())
+    .filter(Boolean);
+  return tokens.length === 0 || tokens.every((token) => fillers.has(token));
+}
+
 function lookupPlan(
   message: string,
   company: string | null,
@@ -160,19 +191,31 @@ function lookupPlan(
     ?.trim();
   if (filter) {
     const queries = lookupCandidates(filter);
-    if (queries.length) return { kind, queries, label: filter, filter: true };
+    if (queries.length)
+      return { kind, queries, label: filter, filter: true, listAll: false };
   }
 
   if (company) {
     const queries = lookupCandidates(company);
-    if (queries.length) return { kind, queries, label: company, filter: false };
+    if (queries.length)
+      return { kind, queries, label: company, filter: false, listAll: false };
   }
 
   if (!explicitNtop) return null;
   const query = explicitNtopQuery(message);
+  if (kind && isListAllQuery(query))
+    return { kind, queries: [""], label: kind, filter: false, listAll: true };
   const explicitQueries = lookupCandidates(query);
-  return explicitQueries.length
-    ? { kind, queries: explicitQueries, label: query, filter: false }
+  if (explicitQueries.length)
+    return {
+      kind,
+      queries: explicitQueries,
+      label: query,
+      filter: false,
+      listAll: false,
+    };
+  return kind
+    ? { kind, queries: [""], label: kind, filter: false, listAll: true }
     : null;
 }
 
@@ -567,6 +610,7 @@ function lookupMessage(
   company: string,
   groups: Record<LookupKind, RecordValue[]>,
   filter = false,
+  listAll = false,
 ) {
   const requested = requestedLookupKind(message);
   const selected = requested ? groups[requested] : [];
@@ -579,10 +623,14 @@ function lookupMessage(
           `${index + 1}. ${lookupRecordLine(requested, record)}`,
       );
     return isThaiMessage
-      ? filter
+      ? listAll
+        ? `พบ ${requested} ใน NTOP จำนวน ${selected.length} รายการ\n\n${lines.join("\n")}`
+        : filter
         ? `พบ ${requested} ที่ตรงกับ “${company}” ใน NTOP จำนวน ${selected.length} รายการ\n\n${lines.join("\n")}`
         : `พบ ${requested} ของ ${company} ใน NTOP จำนวน ${selected.length} รายการ\n\n${lines.join("\n")}`
-      : filter
+      : listAll
+        ? `Found ${selected.length} ${requested.toLowerCase()} record(s) in NTOP.\n\n${lines.join("\n")}`
+        : filter
         ? `Found ${selected.length} ${requested.toLowerCase()} record(s) matching “${company}” in NTOP.\n\n${lines.join("\n")}`
         : `Found ${selected.length} ${requested.toLowerCase()} record(s) for ${company} in NTOP.\n\n${lines.join("\n")}`;
   }
@@ -591,12 +639,16 @@ function lookupMessage(
     .map(([kind, records]) => `${kind}: ${records.length}`);
   if (!counts.length)
     return isThaiMessage
-      ? filter && requested
-        ? `ไม่พบ ${requested} ที่ตรงกับ “${company}” ใน NTOP`
-        : `ไม่พบข้อมูลของ ${company} ใน NTOP`
-      : filter && requested
-        ? `No ${requested.toLowerCase()} records matching “${company}” were found in NTOP.`
-        : `No NTOP records were found for ${company}.`;
+      ? listAll && requested
+        ? `ไม่พบ ${requested} ที่คุณมีสิทธิ์เข้าถึงใน NTOP`
+        : filter && requested
+        ? `ไม่พบ ${requested} ที่ตรงกับ “${company}” ในข้อมูล NTOP ที่คุณมีสิทธิ์เข้าถึง`
+        : `ไม่พบข้อมูลของ ${company} ที่คุณมีสิทธิ์เข้าถึงใน NTOP`
+      : listAll && requested
+        ? `No ${requested.toLowerCase()} records accessible to you were found in NTOP.`
+        : filter && requested
+        ? `No accessible ${requested.toLowerCase()} records matching “${company}” were found in NTOP.`
+        : `No NTOP records accessible to you were found for ${company}.`;
   return isThaiMessage
     ? `พบข้อมูลของ ${company} ใน NTOP: ${counts.join(", ")}`
     : `Found NTOP records for ${company}: ${counts.join(", ")}`;
@@ -880,6 +932,7 @@ export async function orchestrateNtopChat(
                   deterministicLookup?.label ?? intent.company!,
                   groups,
                   deterministicLookup?.filter,
+                  deterministicLookup?.listAll,
                 ),
     };
   }
