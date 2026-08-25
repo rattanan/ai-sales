@@ -88,7 +88,13 @@ type LookupPlan = {
 };
 
 const LOOKUP_REQUEST =
-  /(?:ค้น|หา|ดู|ดึง|แสดง|ลิสต์|รายการ|อะไรบ้าง|สถานะ|ล่าสุด|find|search|show|list|get)/iu;
+  /(?:ค้น|หา|ดู|ดึง|แสดง|ลิสต์|รายการ|อะไรบ้าง|รายละเอียด|สถานะ|ล่าสุด|find|search|show|list|get|details?)/iu;
+
+const DETAIL_REQUEST =
+  /(?:รายละเอียด|ข้อมูลทั้งหมด|เจาะลึก|full details?|details?)/iu;
+
+const SOLUTION_DESIGN_REQUEST =
+  /(?:ออกแบบ|(?:ช่วย|ขอ|กรุณา)\s*(?:จัดทำ|ทำ))\s*(?:solution(?:\s*design)?|โซลูชัน)?|\b(?:design|recommend|propose)\s+(?:an?\s+)?solution\b/iu;
 
 export function hasExplicitNtopLookup(message: string) {
   return (
@@ -124,7 +130,7 @@ function explicitNtopQuery(message: string) {
     .replace(/(?:จาก|ใน)\s*ntop\b/giu, " ")
     .replace(/\bntop\b/giu, " ")
     .replace(
-      /^(?:ช่วย\s*)?(?:ค้นหา|ค้น|หา|ดู|ดึง|แสดง|ลิสต์)\s*(?:ข้อมูล(?:ของ)?\s*)?/iu,
+      /^(?:ช่วย\s*)?(?:ขอ\s*)?(?:ค้นหา|ค้น|หา|ดู|ดึง|แสดง|ลิสต์|รายละเอียด|details?)\s*(?:ข้อมูล(?:ของ)?\s*)?/iu,
       "",
     )
     .replace(
@@ -206,6 +212,24 @@ async function searchQueries(
   });
 }
 
+function detailCandidate(
+  records: RecordValue[],
+  queries: string[],
+  identifierKeys: string[],
+) {
+  const normalizedQueries = new Set(
+    queries.map((query) => query.toLocaleLowerCase()),
+  );
+  return (
+    records.find((record) =>
+      identifierKeys.some((key) => {
+        const value = displayValue(record, key);
+        return value && normalizedQueries.has(value.toLocaleLowerCase());
+      }),
+    ) ?? (records.length === 1 ? records[0] : undefined)
+  );
+}
+
 function lookupRecordLine(kind: LookupKind, record: RecordValue) {
   const identifiers: Record<LookupKind, string[]> = {
     CUSTOMER: ["customerNumber", "customerCode", "name"],
@@ -227,6 +251,315 @@ function lookupRecordLine(kind: LookupKind, record: RecordValue) {
   const name = displayValue(record, ...names[kind]);
   const status = displayValue(record, "status", "stage", "active");
   return [...new Set([identifier, name, status].filter(Boolean))].join(" · ");
+}
+
+function nestedDisplayValue(
+  record: RecordValue,
+  key: string,
+  nestedKey = "name",
+) {
+  const value = record[key];
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "";
+  return displayValue(value as RecordValue, nestedKey);
+}
+
+function localizedDate(value: unknown, locale: string) {
+  if (typeof value !== "string" && !(value instanceof Date)) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.valueOf())
+    ? ""
+    : new Intl.DateTimeFormat(locale, {
+        dateStyle: "medium",
+        timeZone: "Asia/Bangkok",
+      }).format(date);
+}
+
+function localizedMoney(record: RecordValue, key: string, locale: string) {
+  const value = record[key];
+  if (typeof value !== "string" && typeof value !== "number") return "";
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return "";
+  const currency = displayValue(record, "currency") || "THB";
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+function localizedNumber(record: RecordValue, key: string, locale: string) {
+  const value = record[key];
+  if (typeof value !== "string" && typeof value !== "number") return "";
+  const amount = Number(value);
+  return Number.isFinite(amount)
+    ? new Intl.NumberFormat(locale, { maximumFractionDigits: 4 }).format(amount)
+    : "";
+}
+
+function localizedBoolean(
+  record: RecordValue,
+  key: string,
+  isThaiMessage: boolean,
+) {
+  return typeof record[key] === "boolean"
+    ? record[key]
+      ? isThaiMessage
+        ? "ใช่"
+        : "Yes"
+      : isThaiMessage
+        ? "ไม่ใช่"
+        : "No"
+    : "";
+}
+
+function prospectDetailMessage(record: RecordValue, isThaiMessage: boolean) {
+  const locale = isThaiMessage ? "th-TH" : "en-US";
+  const fields: Array<[string, string]> = isThaiMessage
+    ? [
+        ["บริษัท", displayValue(record, "companyName")],
+        ["ชื่อภาษาอังกฤษ", displayValue(record, "companyNameEnglish")],
+        ["สถานะ", displayValue(record, "status")],
+        ["ระดับความสนใจ", displayValue(record, "heatLevel")],
+        ["คะแนน", displayValue(record, "calculatedScore")],
+        ["อุตสาหกรรม", nestedDisplayValue(record, "industry")],
+        [
+          "ประเภทธุรกิจ",
+          displayValue(record, "customerType", "organizationType"),
+        ],
+        ["ขนาดบริษัท", displayValue(record, "companySize")],
+        ["จังหวัด", displayValue(record, "province")],
+        ["เว็บไซต์", displayValue(record, "website")],
+        ["แหล่งที่มา", displayValue(record, "sourceName", "source")],
+        ["ผู้รับผิดชอบ", nestedDisplayValue(record, "owner")],
+        ["ปัญหาธุรกิจ", displayValue(record, "businessPainPoints")],
+        ["งบประมาณที่คาด", localizedMoney(record, "expectedBudget", locale)],
+        [
+          "มูลค่าโอกาสโดยประมาณ",
+          localizedMoney(record, "estimatedOpportunityValue", locale),
+        ],
+        ["ผลิตภัณฑ์แนะนำ", displayValue(record, "recommendedProducts")],
+        ["การติดต่อล่าสุด", localizedDate(record.lastContactAt, locale)],
+        ["นัดติดตามครั้งถัดไป", localizedDate(record.nextFollowUpAt, locale)],
+        ["ขั้นตอนถัดไป", displayValue(record, "suggestedNextAction")],
+        ["หมายเหตุ", displayValue(record, "notes")],
+        ["อัปเดตล่าสุด", localizedDate(record.updatedAt, locale)],
+      ]
+    : [
+        ["Company", displayValue(record, "companyName")],
+        ["English name", displayValue(record, "companyNameEnglish")],
+        ["Status", displayValue(record, "status")],
+        ["Heat level", displayValue(record, "heatLevel")],
+        ["Score", displayValue(record, "calculatedScore")],
+        ["Industry", nestedDisplayValue(record, "industry")],
+        [
+          "Business type",
+          displayValue(record, "customerType", "organizationType"),
+        ],
+        ["Company size", displayValue(record, "companySize")],
+        ["Province", displayValue(record, "province")],
+        ["Website", displayValue(record, "website")],
+        ["Source", displayValue(record, "sourceName", "source")],
+        ["Owner", nestedDisplayValue(record, "owner")],
+        ["Business pain points", displayValue(record, "businessPainPoints")],
+        ["Expected budget", localizedMoney(record, "expectedBudget", locale)],
+        [
+          "Estimated opportunity value",
+          localizedMoney(record, "estimatedOpportunityValue", locale),
+        ],
+        ["Recommended products", displayValue(record, "recommendedProducts")],
+        ["Last contact", localizedDate(record.lastContactAt, locale)],
+        ["Next follow-up", localizedDate(record.nextFollowUpAt, locale)],
+        ["Next action", displayValue(record, "suggestedNextAction")],
+        ["Notes", displayValue(record, "notes")],
+        ["Last updated", localizedDate(record.updatedAt, locale)],
+      ];
+  const identifier = displayValue(record, "prospectCode");
+  const lines = fields
+    .filter(([, value]) => value)
+    .map(([label, value]) => `- ${label}: ${value}`);
+  return isThaiMessage
+    ? `รายละเอียด Prospect ${identifier} จาก NTOP\n\n${lines.join("\n")}`
+    : `Prospect ${identifier} details from NTOP\n\n${lines.join("\n")}`;
+}
+
+function leadDetailMessage(record: RecordValue, isThaiMessage: boolean) {
+  const locale = isThaiMessage ? "th-TH" : "en-US";
+  const fields: Array<[string, string]> = isThaiMessage
+    ? [
+        ["บริษัท", displayValue(record, "company")],
+        ["สถานะ", displayValue(record, "status")],
+        ["ความสำคัญ", displayValue(record, "priority")],
+        ["ระดับความสนใจ", displayValue(record, "temperature")],
+        ["คะแนน", displayValue(record, "score")],
+        ["อุตสาหกรรม", displayValue(record, "industry")],
+        ["แหล่งที่มา", displayValue(record, "source")],
+        ["ผู้รับผิดชอบ", nestedDisplayValue(record, "owner")],
+        ["ความต้องการ", displayValue(record, "requirementSummary")],
+        ["ผลิตภัณฑ์แนะนำ", displayValue(record, "recommendedProducts")],
+        [
+          "งบประมาณโดยประมาณ",
+          localizedMoney(record, "estimatedBudget", locale),
+        ],
+        ["พื้นที่ให้บริการ", displayValue(record, "serviceLocations")],
+        ["ติดต่อล่าสุด", localizedDate(record.lastContactedAt, locale)],
+        ["นัดติดตามครั้งถัดไป", localizedDate(record.nextFollowUpAt, locale)],
+        ["คาดว่าจะจัดซื้อ", localizedDate(record.expectedPurchaseAt, locale)],
+        ["ผลการ Qualification", displayValue(record, "qualificationResult")],
+        ["หมายเหตุ", displayValue(record, "notes")],
+        ["อัปเดตล่าสุด", localizedDate(record.updatedAt, locale)],
+      ]
+    : [
+        ["Company", displayValue(record, "company")],
+        ["Status", displayValue(record, "status")],
+        ["Priority", displayValue(record, "priority")],
+        ["Temperature", displayValue(record, "temperature")],
+        ["Score", displayValue(record, "score")],
+        ["Industry", displayValue(record, "industry")],
+        ["Source", displayValue(record, "source")],
+        ["Owner", nestedDisplayValue(record, "owner")],
+        ["Requirements", displayValue(record, "requirementSummary")],
+        ["Recommended products", displayValue(record, "recommendedProducts")],
+        ["Estimated budget", localizedMoney(record, "estimatedBudget", locale)],
+        ["Service locations", displayValue(record, "serviceLocations")],
+        ["Last contacted", localizedDate(record.lastContactedAt, locale)],
+        ["Next follow-up", localizedDate(record.nextFollowUpAt, locale)],
+        ["Expected purchase", localizedDate(record.expectedPurchaseAt, locale)],
+        ["Qualification result", displayValue(record, "qualificationResult")],
+        ["Notes", displayValue(record, "notes")],
+        ["Last updated", localizedDate(record.updatedAt, locale)],
+      ];
+  const identifier = displayValue(record, "leadNumber");
+  const lines = fields
+    .filter(([, value]) => value)
+    .map(([label, value]) => `- ${label}: ${value}`);
+  return isThaiMessage
+    ? `รายละเอียด Lead ${identifier} จาก NTOP\n\n${lines.join("\n")}`
+    : `Lead ${identifier} details from NTOP\n\n${lines.join("\n")}`;
+}
+
+function productDetailMessage(record: RecordValue, isThaiMessage: boolean) {
+  const locale = isThaiMessage ? "th-TH" : "en-US";
+  const fields: Array<[string, string]> = isThaiMessage
+    ? [
+        ["ชื่อผลิตภัณฑ์", displayValue(record, "name", "productName")],
+        ["หมวดหมู่", displayValue(record, "category")],
+        ["รายละเอียด", displayValue(record, "description")],
+        ["List price จาก NTOP", localizedNumber(record, "listPrice", locale)],
+        ["รหัส Service Category", displayValue(record, "serviceCategoryCode")],
+        [
+          "ต้องสำรวจพื้นที่",
+          localizedBoolean(record, "requiresSiteSurvey", true),
+        ],
+        ["ต้องจัดทำ BOQ", localizedBoolean(record, "requiresBoq", true)],
+        [
+          "ต้องติดตั้งอุปกรณ์",
+          localizedBoolean(record, "requiresPhysicalInstallation", true),
+        ],
+        ["เปิดใช้งาน", localizedBoolean(record, "active", true)],
+        ["อัปเดตล่าสุด", localizedDate(record.updatedAt, locale)],
+      ]
+    : [
+        ["Product", displayValue(record, "name", "productName")],
+        ["Category", displayValue(record, "category")],
+        ["Description", displayValue(record, "description")],
+        ["NTOP list price", localizedNumber(record, "listPrice", locale)],
+        ["Service category code", displayValue(record, "serviceCategoryCode")],
+        [
+          "Site survey required",
+          localizedBoolean(record, "requiresSiteSurvey", false),
+        ],
+        ["BOQ required", localizedBoolean(record, "requiresBoq", false)],
+        [
+          "Physical installation required",
+          localizedBoolean(record, "requiresPhysicalInstallation", false),
+        ],
+        ["Active", localizedBoolean(record, "active", false)],
+        ["Last updated", localizedDate(record.updatedAt, locale)],
+      ];
+  const identifier = displayValue(record, "productCode", "code");
+  const lines = fields
+    .filter(([, value]) => value)
+    .map(([label, value]) => `- ${label}: ${value}`);
+  return isThaiMessage
+    ? `รายละเอียด Product ${identifier} จาก NTOP\n\n${lines.join("\n")}`
+    : `Product ${identifier} details from NTOP\n\n${lines.join("\n")}`;
+}
+
+function solutionDesignFacts(
+  message: string,
+  contextMessages: string[],
+  current: ReturnType<typeof fallbackNtopSalesIntent>,
+) {
+  let company = current.company;
+  let requirement = current.requirement ?? current.solution;
+  if (!SOLUTION_DESIGN_REQUEST.test(message)) return { company, requirement };
+  for (const contextMessage of [...contextMessages].reverse()) {
+    if (company && requirement) break;
+    const prior = fallbackNtopSalesIntent(contextMessage);
+    company ??= prior.company;
+    requirement ??= prior.requirement ?? prior.solution;
+  }
+  return { company, requirement };
+}
+
+function productSearchQueries(value: string) {
+  const stopWords = new Set([
+    "a",
+    "an",
+    "and",
+    "for",
+    "the",
+    "with",
+    "ลูกค้า",
+    "ต้องการ",
+    "ระบบ",
+    "สำหรับ",
+    "และ",
+    "พร้อม",
+    "ใช้",
+  ]);
+  const segments = value
+    .split(
+      /[,，;；+]|\s+(?:และ|พร้อม|รวมถึง|กับ|สำหรับ|เพื่อ)\s*|\s+(?:and|with|for|plus)\s+/iu,
+    )
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const tokens = segments.flatMap((segment) =>
+    segment
+      .split(/\s+/u)
+      .map((item) => item.trim())
+      .filter(
+        (item) =>
+          item.length > 1 &&
+          !stopWords.has(item.toLocaleLowerCase()) &&
+          !/^\d+(?:\.\d+)?$/u.test(item),
+      ),
+  );
+  return [...new Set([value.trim(), ...segments, ...tokens])]
+    .filter(Boolean)
+    .slice(0, 8);
+}
+
+function solutionProductFact(record: RecordValue) {
+  return {
+    id: displayValue(record, "id"),
+    code: displayValue(record, "code", "productCode"),
+    name: displayValue(record, "name", "productName"),
+    category: displayValue(record, "category"),
+    description: displayValue(record, "description"),
+    listPrice: displayValue(record, "listPrice"),
+    serviceCategoryCode: displayValue(record, "serviceCategoryCode"),
+    requiresSiteSurvey:
+      typeof record.requiresSiteSurvey === "boolean"
+        ? record.requiresSiteSurvey
+        : undefined,
+    requiresBoq:
+      typeof record.requiresBoq === "boolean" ? record.requiresBoq : undefined,
+    requiresPhysicalInstallation:
+      typeof record.requiresPhysicalInstallation === "boolean"
+        ? record.requiresPhysicalInstallation
+        : undefined,
+  };
 }
 
 function lookupMessage(
@@ -276,8 +609,17 @@ export async function orchestrateNtopChat(
 ): Promise<NtopChatOutcome> {
   const contextMessages = options.contextMessages ?? [];
   const fallbackIntent = fallbackNtopSalesIntent(message, contextMessages);
+  const solutionDesignRequested = SOLUTION_DESIGN_REQUEST.test(message);
+  const fallbackDesignFacts = solutionDesignFacts(
+    message,
+    contextMessages,
+    fallbackIntent,
+  );
   const explicitNtopLookup = hasExplicitNtopLookup(message);
-  const fallbackLookup = lookupPlan(message, fallbackIntent.company);
+  const fallbackLookup = lookupPlan(
+    message,
+    fallbackIntent.company ?? fallbackDesignFacts.company,
+  );
   const connection = await configuredNtopConnectionForUser(userId, {
     allowLegacyKey: true,
   });
@@ -287,7 +629,8 @@ export async function orchestrateNtopChat(
     if (
       (fallbackIntent.intent === "NONE" || !fallbackIntent.company) &&
       !fallbackLookup &&
-      !explicitNtopLookup
+      !explicitNtopLookup &&
+      !solutionDesignRequested
     )
       return { evidence: [], toolUsed: false };
     return {
@@ -296,11 +639,13 @@ export async function orchestrateNtopChat(
       warning: /[\u0E00-\u0E7F]/.test(message)
         ? explicitNtopLookup ||
           fallbackLookup ||
+          solutionDesignRequested ||
           fallbackIntent.intent === "LOOKUP"
           ? `ตรวจพบคำขอค้นข้อมูลของ ${lookupTarget} แต่ AI-Sales ยังไม่ได้เชื่อมต่อ NTOP กรุณาให้ผู้ดูแลตั้งค่า NTOP integration แล้วลองอีกครั้ง`
           : `ตรวจพบข้อมูลที่เหมาะสำหรับบันทึกเป็น Prospect ของ ${fallbackIntent.company} แต่ AI-Sales ยังไม่ได้เชื่อมต่อ NTOP กรุณาให้ผู้ดูแลตั้งค่า NTOP integration แล้วลองอีกครั้ง`
         : explicitNtopLookup ||
             fallbackLookup ||
+            solutionDesignRequested ||
             fallbackIntent.intent === "LOOKUP"
           ? `I detected an NTOP lookup for ${lookupTarget}, but AI-Sales is not connected to NTOP. Ask an administrator to configure the integration and try again.`
           : `This looks suitable for a Prospect for ${fallbackIntent.company}, but AI-Sales is not connected to NTOP. Ask an administrator to configure the NTOP integration and try again.`,
@@ -309,17 +654,27 @@ export async function orchestrateNtopChat(
   }
   const { client } = connection;
   const intent = await detectNtopSalesIntent(message, contextMessages);
+  const designFacts = solutionDesignFacts(message, contextMessages, {
+    ...fallbackIntent,
+    ...intent,
+    company: intent.company ?? fallbackDesignFacts.company,
+    requirement:
+      intent.requirement ?? fallbackDesignFacts.requirement ?? intent.solution,
+    solution:
+      intent.solution ?? fallbackDesignFacts.requirement ?? intent.requirement,
+  });
   const deterministicLookup = lookupPlan(
     message,
-    intent.company ?? fallbackIntent.company,
+    intent.company ?? fallbackIntent.company ?? designFacts.company,
   );
   if (
     (intent.intent === "NONE" || !intent.company) &&
     !deterministicLookup &&
-    !explicitNtopLookup
+    !explicitNtopLookup &&
+    !solutionDesignRequested
   )
     return { evidence: [], toolUsed: false };
-  if (explicitNtopLookup && !deterministicLookup)
+  if (explicitNtopLookup && !deterministicLookup && !solutionDesignRequested)
     return {
       evidence: [],
       toolUsed: true,
@@ -327,6 +682,105 @@ export async function orchestrateNtopChat(
         ? "กรุณาระบุชื่อบริษัท ประเภทข้อมูล หรือคำค้นที่ต้องการค้นจาก NTOP"
         : "Specify a company, record type, or search term to look up in NTOP.",
     };
+  if (solutionDesignRequested) {
+    const sourceQueries = designFacts.company
+      ? lookupCandidates(designFacts.company)
+      : [];
+    const [prospectRecords, leadRecords] = sourceQueries.length
+      ? await Promise.all([
+          searchQueries(sourceQueries, (query) => client.searchProspect(query)),
+          searchQueries(sourceQueries, (query) => client.searchLead(query)),
+        ])
+      : [[], []];
+    const firstProspect = detailCandidate(prospectRecords, sourceQueries, [
+      "id",
+      "prospectCode",
+      "companyName",
+    ]);
+    const firstLead = detailCandidate(leadRecords, sourceQueries, [
+      "id",
+      "leadNumber",
+      "company",
+    ]);
+    const [prospectDetail, leadDetail] = await Promise.all([
+      typeof firstProspect?.id === "string"
+        ? client.getProspect(firstProspect.id).catch(() => firstProspect)
+        : Promise.resolve(firstProspect),
+      typeof firstLead?.id === "string"
+        ? client.getLead(firstLead.id).catch(() => firstLead)
+        : Promise.resolve(firstLead),
+    ]);
+    const requirementParts = [
+      designFacts.requirement,
+      prospectDetail ? displayValue(prospectDetail, "recommendedProducts") : "",
+      prospectDetail ? displayValue(prospectDetail, "businessPainPoints") : "",
+      leadDetail ? displayValue(leadDetail, "recommendedProducts") : "",
+      leadDetail ? displayValue(leadDetail, "requirementSummary") : "",
+    ].filter((value): value is string => Boolean(value));
+    const requirements = [...new Set(requirementParts)].join(", ");
+    if (!requirements)
+      return {
+        evidence: [],
+        toolUsed: true,
+        message: /[\u0E00-\u0E7F]/.test(message)
+          ? "กรุณาระบุความต้องการของลูกค้า หรือระบุ Prospect/Lead ที่มี Requirement ใน NTOP ก่อนให้ออกแบบ Solution"
+          : "Specify the customer requirements, or identify a Prospect/Lead with requirements in NTOP before requesting a Solution Design.",
+      };
+    const productRecords = (
+      await searchQueries(productSearchQueries(requirements), (query) =>
+        client.searchProduct(query),
+      )
+    ).filter((record) => record.active !== false);
+    if (!productRecords.length)
+      return {
+        evidence: evidence(
+          [
+            {
+              company: designFacts.company,
+              customerRequirements: requirements,
+            },
+          ],
+          requirements,
+        ),
+        toolUsed: true,
+        message: /[\u0E00-\u0E7F]/.test(message)
+          ? `ไม่พบ Product ที่ตรงกับความต้องการ “${requirements}” ใน NTOP จึงยังออกแบบ Solution และระบุราคาไม่ได้`
+          : `No NTOP Product matched “${requirements}”, so a grounded Solution Design with pricing cannot be produced yet.`,
+      };
+    const productDetails = (
+      await Promise.all(
+        productRecords
+          .slice(0, 10)
+          .map((record) =>
+            typeof record.id === "string"
+              ? client.getProduct(record.id)
+              : Promise.resolve(record),
+          ),
+      )
+    ).filter((record) => record.active !== false);
+    if (!productDetails.length)
+      return {
+        evidence: [],
+        toolUsed: true,
+        message: /[\u0E00-\u0E7F]/.test(message)
+          ? "Product ที่ค้นพบถูกปิดใช้งานแล้ว จึงไม่นำมาใช้จัดทำ Solution Design"
+          : "The matching Products are inactive and were excluded from the Solution Design.",
+      };
+    return {
+      evidence: evidence(
+        [
+          {
+            sourceType: "NTOP_SOLUTION_DESIGN_CONTEXT",
+            company: designFacts.company,
+            customerRequirements: requirements,
+            products: productDetails.map(solutionProductFact),
+          },
+        ],
+        requirements,
+      ),
+      toolUsed: true,
+    };
+  }
   const isLookup =
     explicitNtopLookup ||
     Boolean(deterministicLookup) ||
@@ -375,23 +829,58 @@ export async function orchestrateNtopChat(
     ...products,
   ] as RecordValue[];
   if (isLookup) {
-    const firstOpportunity = opportunities[0] as RecordValue | undefined;
-    const detail =
-      firstOpportunity && typeof firstOpportunity.id === "string"
-        ? await client.getOpportunity(firstOpportunity.id).catch(() => null)
-        : null;
+    const detailRequested = DETAIL_REQUEST.test(message);
+    const firstProspect = detailCandidate(
+      prospects as RecordValue[],
+      searchTerms,
+      ["id", "prospectCode", "companyName"],
+    );
+    const firstLead = detailCandidate(leads as RecordValue[], searchTerms, [
+      "id",
+      "leadNumber",
+      "company",
+    ]);
+    const firstOpportunity = detailCandidate(
+      opportunities as RecordValue[],
+      searchTerms,
+      ["id", "opportunityNumber", "name"],
+    );
+    const firstProduct = detailCandidate(
+      products as RecordValue[],
+      searchTerms,
+      ["id", "productCode", "code", "name"],
+    );
+    const detail = detailRequested
+      ? lookupKind === "PROSPECT" && typeof firstProspect?.id === "string"
+        ? await client.getProspect(firstProspect.id)
+        : lookupKind === "LEAD" && typeof firstLead?.id === "string"
+          ? await client.getLead(firstLead.id)
+          : lookupKind === "OPPORTUNITY" &&
+              typeof firstOpportunity?.id === "string"
+            ? await client.getOpportunity(firstOpportunity.id)
+            : lookupKind === "PRODUCT" && typeof firstProduct?.id === "string"
+              ? await client.getProduct(firstProduct.id)
+              : null
+      : null;
     return {
       evidence: evidence(
         detail ? [...combined, detail] : combined,
         deterministicLookup?.label ?? intent.company!,
       ),
       toolUsed: true,
-      message: lookupMessage(
-        message,
-        deterministicLookup?.label ?? intent.company!,
-        groups,
-        deterministicLookup?.filter,
-      ),
+      message:
+        detail && lookupKind === "PROSPECT"
+          ? prospectDetailMessage(detail, /[\u0E00-\u0E7F]/.test(message))
+          : detail && lookupKind === "LEAD"
+            ? leadDetailMessage(detail, /[\u0E00-\u0E7F]/.test(message))
+            : detail && lookupKind === "PRODUCT"
+              ? productDetailMessage(detail, /[\u0E00-\u0E7F]/.test(message))
+              : lookupMessage(
+                  message,
+                  deterministicLookup?.label ?? intent.company!,
+                  groups,
+                  deterministicLookup?.filter,
+                ),
     };
   }
   const company = intent.company;

@@ -58,15 +58,19 @@ describe("NTOP Business Memory", () => {
     ).toBe("NONE");
   });
 
+  it("does not mistake the NTOP source name for a customer", () => {
+    expect(
+      fallbackNtopSalesIntent("ช่วยออกแบบ Solution Design จาก NTOP").company,
+    ).toBeNull();
+  });
+
   it("keeps credentials server-side and sends idempotency on writes", async () => {
-    const fetchMock = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(
-        new Response(JSON.stringify({ data: { id: "p-1" } }), {
-          status: 201,
-          headers: { "content-type": "application/json" },
-        }),
-      );
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ data: { id: "p-1" } }), {
+        status: 201,
+        headers: { "content-type": "application/json" },
+      }),
+    );
     const client = new NtopClient(
       "https://ntop.example.test/api/v1",
       "secret-service-token",
@@ -80,6 +84,68 @@ describe("NTOP Business Memory", () => {
         headers: expect.objectContaining({
           authorization: "Bearer secret-service-token",
           "idempotency-key": "action-key",
+        }),
+      }),
+    );
+  });
+
+  it("fetches a Prospect detail resource with the configured credential", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ data: { id: "p/1" } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const client = new NtopClient(
+      "https://ntop.example.test/api/v1",
+      "secret-service-token",
+      5_000,
+    );
+
+    await client.getProspect("p/1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://ntop.example.test/api/v1/prospects/p%2F1",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          authorization: "Bearer secret-service-token",
+        }),
+      }),
+    );
+  });
+
+  it("fetches Lead and Product detail resources with the configured credential", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ data: { id: "detail-1" } }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+    );
+    const client = new NtopClient(
+      "https://ntop.example.test/api/v1",
+      "secret-service-token",
+      5_000,
+    );
+
+    await client.getLead("lead/1");
+    await client.getProduct("product/1");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://ntop.example.test/api/v1/leads/lead%2F1",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          authorization: "Bearer secret-service-token",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://ntop.example.test/api/v1/products/product%2F1",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          authorization: "Bearer secret-service-token",
         }),
       }),
     );

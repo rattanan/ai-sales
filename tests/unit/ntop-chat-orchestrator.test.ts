@@ -153,6 +153,252 @@ describe("NTOP chat orchestration", () => {
     expect(outcome.message).toContain("PR-001 · ธกศ · NEW");
   });
 
+  it("fetches and renders Prospect details when explicitly requested", async () => {
+    const emptySearch = vi.fn().mockResolvedValue([]);
+    const getProspect = vi.fn().mockResolvedValue({
+      id: "prospect-1",
+      prospectCode: "PR-2026-0000003",
+      companyName: "ธกศ",
+      status: "NEW",
+      heatLevel: "WARM",
+      calculatedScore: 65,
+      industry: { name: "ธนาคาร" },
+      owner: { name: "Sales One" },
+      businessPainPoints: "ต้องการวงจรสำรอง",
+      expectedBudget: "100000",
+      currency: "THB",
+      recommendedProducts: "Fixed IP",
+      taxId: "1234567890123",
+      contacts: [{ phone: "0812345678" }],
+      updatedAt: "2026-08-25T00:00:00.000Z",
+    });
+    mocks.configuredNtopConnectionForUser.mockResolvedValue({
+      credentialSource: "USER",
+      client: {
+        searchCustomer: emptySearch,
+        searchProspect: vi.fn().mockResolvedValue([
+          {
+            id: "prospect-1",
+            prospectCode: "PR-2026-0000003",
+            companyName: "ธกศ",
+            status: "NEW",
+          },
+        ]),
+        searchLead: emptySearch,
+        searchOpportunity: emptySearch,
+        searchQuotation: emptySearch,
+        getProspect,
+      },
+    });
+
+    const outcome = await orchestrateNtopChat(
+      "user-1",
+      "ขอรายละเอียด Prospect PR-2026-0000003 จาก NTOP",
+    );
+
+    expect(getProspect).toHaveBeenCalledWith("prospect-1");
+    expect(outcome.message).toContain(
+      "รายละเอียด Prospect PR-2026-0000003 จาก NTOP",
+    );
+    expect(outcome.message).toContain("- อุตสาหกรรม: ธนาคาร");
+    expect(outcome.message).toContain("- ปัญหาธุรกิจ: ต้องการวงจรสำรอง");
+    expect(outcome.message).toContain("- ผลิตภัณฑ์แนะนำ: Fixed IP");
+    expect(outcome.message).not.toContain("1234567890123");
+    expect(outcome.message).not.toContain("0812345678");
+    expect(outcome.evidence[0]?.content).toContain("1234567890123");
+  });
+
+  it("fetches and renders Lead details without exposing contact values", async () => {
+    const emptySearch = vi.fn().mockResolvedValue([]);
+    const getLead = vi.fn().mockResolvedValue({
+      id: "lead-1",
+      leadNumber: "LD-2026-0007",
+      company: "ABC",
+      status: "QUALIFIED",
+      temperature: "HOT",
+      score: 82,
+      requirementSummary: "ต้องการ Internet สำรอง",
+      recommendedProducts: "Fixed IP",
+      estimatedBudget: "250000",
+      contactEmail: "buyer@example.test",
+      contactPhone: "0812345678",
+    });
+    mocks.configuredNtopConnectionForUser.mockResolvedValue({
+      credentialSource: "USER",
+      client: {
+        searchCustomer: emptySearch,
+        searchProspect: emptySearch,
+        searchLead: vi.fn().mockResolvedValue([
+          {
+            id: "lead-1",
+            leadNumber: "LD-2026-0007",
+            company: "ABC",
+            status: "QUALIFIED",
+          },
+        ]),
+        searchOpportunity: emptySearch,
+        searchQuotation: emptySearch,
+        getLead,
+      },
+    });
+
+    const outcome = await orchestrateNtopChat(
+      "user-1",
+      "ขอรายละเอียด Lead LD-2026-0007 จาก NTOP",
+    );
+
+    expect(getLead).toHaveBeenCalledWith("lead-1");
+    expect(outcome.message).toContain("รายละเอียด Lead LD-2026-0007 จาก NTOP");
+    expect(outcome.message).toContain("- ความต้องการ: ต้องการ Internet สำรอง");
+    expect(outcome.message).toContain("- ผลิตภัณฑ์แนะนำ: Fixed IP");
+    expect(outcome.message).not.toContain("buyer@example.test");
+    expect(outcome.message).not.toContain("0812345678");
+  });
+
+  it("fetches Product details and renders the NTOP list price", async () => {
+    const emptySearch = vi.fn().mockResolvedValue([]);
+    const getProduct = vi.fn().mockResolvedValue({
+      id: "product-1",
+      code: "FIX-IP",
+      name: "Fixed IP",
+      category: "Dedicated Internet",
+      description: "อินเทอร์เน็ตพร้อม Public IP",
+      listPrice: "12500.00",
+      floorPrice: "9000.00",
+      standardCost: "7000.00",
+      requiresSiteSurvey: true,
+      requiresBoq: false,
+      requiresPhysicalInstallation: true,
+      active: true,
+    });
+    mocks.configuredNtopConnectionForUser.mockResolvedValue({
+      credentialSource: "USER",
+      client: {
+        searchCustomer: emptySearch,
+        searchProspect: emptySearch,
+        searchLead: emptySearch,
+        searchOpportunity: emptySearch,
+        searchQuotation: emptySearch,
+        searchProduct: vi
+          .fn()
+          .mockResolvedValue([
+            { id: "product-1", code: "FIX-IP", name: "Fixed IP", active: true },
+          ]),
+        getProduct,
+      },
+    });
+
+    const outcome = await orchestrateNtopChat(
+      "user-1",
+      "ขอรายละเอียด Product FIX-IP จาก NTOP",
+    );
+
+    expect(getProduct).toHaveBeenCalledWith("product-1");
+    expect(outcome.message).toContain("รายละเอียด Product FIX-IP จาก NTOP");
+    expect(outcome.message).toContain("- List price จาก NTOP: 12,500");
+    expect(outcome.message).not.toContain("9,000");
+    expect(outcome.message).not.toContain("7,000");
+  });
+
+  it("grounds a requested Solution Design in Product details and list prices", async () => {
+    const emptySearch = vi.fn().mockResolvedValue([]);
+    const searchProduct = vi.fn(async (query: string) =>
+      query.toLocaleLowerCase().includes("fixed ip")
+        ? [
+            {
+              id: "product-1",
+              code: "FIX-IP",
+              name: "Fixed IP",
+              category: "Dedicated Internet",
+            },
+          ]
+        : [],
+    );
+    const getProduct = vi.fn().mockResolvedValue({
+      id: "product-1",
+      code: "FIX-IP",
+      name: "Fixed IP",
+      category: "Dedicated Internet",
+      description: "อินเทอร์เน็ตพร้อม Public IP",
+      listPrice: "12500.00",
+      floorPrice: "9000.00",
+      standardCost: "7000.00",
+      requiresSiteSurvey: true,
+      requiresBoq: false,
+      requiresPhysicalInstallation: true,
+      active: true,
+    });
+    mocks.configuredNtopConnectionForUser.mockResolvedValue({
+      credentialSource: "USER",
+      client: {
+        searchProspect: emptySearch,
+        searchLead: emptySearch,
+        searchProduct,
+        getProduct,
+      },
+    });
+
+    const outcome = await orchestrateNtopChat(
+      "user-1",
+      "ลูกค้า ABC ต้องการ Fixed IP ช่วยออกแบบ Solution Design จาก NTOP",
+    );
+
+    expect(searchProduct).toHaveBeenCalledWith("Fixed IP");
+    expect(getProduct).toHaveBeenCalledWith("product-1");
+    expect(outcome).toMatchObject({ toolUsed: true });
+    expect(outcome.message).toBeUndefined();
+    expect(outcome.action).toBeUndefined();
+    expect(outcome.evidence[0]?.content).toContain('"listPrice":"12500.00"');
+    expect(outcome.evidence[0]?.content).toContain('"requiresSiteSurvey":true');
+    expect(outcome.evidence[0]?.content).not.toContain("floorPrice");
+    expect(outcome.evidence[0]?.content).not.toContain("standardCost");
+  });
+
+  it("uses recent customer requirements for a Solution Design follow-up", async () => {
+    const searchProspect = vi.fn().mockResolvedValue([]);
+    const searchLead = vi.fn().mockResolvedValue([]);
+    const searchProduct = vi.fn().mockResolvedValue([
+      {
+        id: "product-1",
+        code: "FIX-IP",
+        name: "Fixed IP",
+        listPrice: "12500.00",
+        active: true,
+      },
+    ]);
+    mocks.configuredNtopConnectionForUser.mockResolvedValue({
+      credentialSource: "USER",
+      client: {
+        searchProspect,
+        searchLead,
+        searchProduct,
+        getProduct: vi.fn().mockResolvedValue({
+          id: "product-1",
+          code: "FIX-IP",
+          name: "Fixed IP",
+          listPrice: "12500.00",
+          active: true,
+        }),
+      },
+    });
+
+    const outcome = await orchestrateNtopChat(
+      "user-1",
+      "ช่วยออกแบบ Solution Design จาก NTOP",
+      {
+        contextMessages: ["ลูกค้า ABC ต้องการ Fixed IP สำหรับสาขาใหม่"],
+      },
+    );
+
+    expect(searchProspect).toHaveBeenCalledWith("ABC");
+    expect(searchLead).toHaveBeenCalledWith("ABC");
+    expect(searchProduct).toHaveBeenCalledWith("Fixed IP");
+    expect(outcome.evidence[0]?.content).toContain('"company":"ABC"');
+    expect(outcome.evidence[0]?.content).toContain(
+      '"customerRequirements":"Fixed IP สำหรับสาขาใหม่"',
+    );
+  });
+
   it("normalizes dotted Thai abbreviations before searching NTOP", async () => {
     const emptySearch = vi.fn().mockResolvedValue([]);
     const searchProspect = vi.fn(async (query: string) =>

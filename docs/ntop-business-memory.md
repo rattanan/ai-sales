@@ -7,6 +7,7 @@ InsightKM remains the governed Knowledge + AI Chat layer. NTOP remains the syste
 1. Chat classifies a likely sales message and extracts explicit sales facts.
 2. Read tools search NTOP automatically through the InsightKM backend.
 3. Existing NTOP facts are supplied as ephemeral grounded context alongside InsightKM knowledge. They are not indexed into the vector store.
+   Detail requests resolve the selected Prospect, Lead, Opportunity, Product, or Quotation through its resource endpoint. When a user asks for a Solution Design, AI-Sales searches active NTOP Products, fetches their details, and grounds the draft in Product descriptions, `listPrice`, and survey/BOQ/installation flags. Product floor price and standard cost are excluded from Solution Design prompts.
 4. A write intent creates an expiring `NtopActionProposal`; it does not call an NTOP write endpoint.
 5. Only the authenticated owner can confirm the action. InsightKM decrypts that user's personal NTOP API Key on the server, claims the proposal atomically, and calls NTOP with its stable idempotency key.
 6. NTOP resolves the API Key to the matching active NTOP user. Existing domain services use that identity as the record owner/maker and write their normal server timestamp and audit event.

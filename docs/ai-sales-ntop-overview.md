@@ -182,7 +182,7 @@ NTOP ไม่ได้เรียก AI provider ของ AI-Sales สำห�
 6. ข้อมูลถูกส่งกลับเป็น grounded context ให้คำตอบ
 7. AI-Sales บันทึก citation และ tool trace แต่ไม่นำข้อมูล NTOP ไปสร้าง vector index ถาวร
 
-ข้อมูลที่ค้นได้ประกอบด้วย Customer, Prospect, Lead, Opportunity, Product และ Quotation รวมถึง detail ของ Customer, Opportunity และ Quote บางส่วน
+ข้อมูลที่ค้นได้ประกอบด้วย Customer, Prospect, Lead, Opportunity, Product และ Quotation รวมถึง resource detail ของ Prospect, Lead, Product และรายการที่รองรับอื่น เมื่อผู้ใช้ขอให้ออกแบบ Solution ระบบจะค้นเฉพาะ Product ที่ active, ดึงรายละเอียดและ `listPrice` จาก NTOP มาเป็น grounded context โดยไม่ส่ง floor price หรือ standard cost เข้า prompt และไม่สร้าง Solution Design record โดยอัตโนมัติ
 
 ### 3.2 การเขียนข้อมูล
 
@@ -306,4 +306,3 @@ Client, enum และ action service มีโครงสร้างสำห
 - [Roles and Permissions](../../ntop/docs/roles-and-permissions.md)
 - [AI Design](../../ntop/docs/ai-design.md)
 - [End-to-End Sales Flow Audit](../../ntop/docs/end-to-end-sales-flow-audit.md)
-

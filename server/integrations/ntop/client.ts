@@ -112,6 +112,16 @@ export class NtopClient {
       ({ data }) => data,
     );
   }
+  getProspect(id: string) {
+    return this.request<Resource>(`/prospects/${encodeURIComponent(id)}`).then(
+      ({ data }) => data,
+    );
+  }
+  getLead(id: string) {
+    return this.request<Resource>(`/leads/${encodeURIComponent(id)}`).then(
+      ({ data }) => data,
+    );
+  }
   getOpportunity(id: string) {
     return this.request<Resource>(
       `/opportunities/${encodeURIComponent(id)}`,
@@ -119,6 +129,11 @@ export class NtopClient {
   }
   getQuotation(id: string) {
     return this.request<Resource>(`/quotes/${encodeURIComponent(id)}`).then(
+      ({ data }) => data,
+    );
+  }
+  getProduct(id: string) {
+    return this.request<Resource>(`/products/${encodeURIComponent(id)}`).then(
       ({ data }) => data,
     );
   }
