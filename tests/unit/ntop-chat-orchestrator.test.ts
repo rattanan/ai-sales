@@ -28,6 +28,9 @@ describe("NTOP chat orchestration", () => {
   it("detects explicit NTOP reads without treating writes as reads", () => {
     expect(hasExplicitNtopLookup("ช่วยหาข้อมูล ธกศ จาก NTOP")).toBe(true);
     expect(hasExplicitNtopLookup("search prospects in NTOP")).toBe(true);
+    expect(
+      hasExplicitNtopLookup("product ที่เกี่ยวกับ internet จาก ntop"),
+    ).toBe(true);
     expect(hasExplicitNtopLookup("ช่วยสร้าง prospect ใน NTOP")).toBe(false);
     expect(hasExplicitNtopLookup("NTOP เชื่อมต่ออยู่ไหม")).toBe(false);
   });
@@ -613,6 +616,41 @@ describe("NTOP chat orchestration", () => {
 
     expect(searchProduct).toHaveBeenCalledWith("ABC");
     expect(outcome.message).toContain("FIX-IP · Fixed IP · ACTIVE");
+  });
+
+  it("routes an NTOP product topic directly to Product search", async () => {
+    const emptySearch = vi.fn().mockResolvedValue([]);
+    const searchProduct = vi.fn(async (query: string) =>
+      query === "internet"
+        ? [
+            {
+              productCode: "BB-CINET-001",
+              name: "C internet",
+              status: "ACTIVE",
+            },
+          ]
+        : [],
+    );
+    mocks.configuredNtopConnectionForUser.mockResolvedValue({
+      credentialSource: "USER",
+      client: {
+        searchCustomer: emptySearch,
+        searchProspect: emptySearch,
+        searchLead: emptySearch,
+        searchOpportunity: emptySearch,
+        searchQuotation: emptySearch,
+        searchProduct,
+      },
+    });
+
+    const outcome = await orchestrateNtopChat(
+      "user-1",
+      "product ที่เกี่ยวกับ internet จาก ntop",
+    );
+
+    expect(searchProduct).toHaveBeenCalledWith("internet");
+    expect(outcome).toMatchObject({ toolUsed: true });
+    expect(outcome.message).toContain("BB-CINET-001 · C internet · ACTIVE");
   });
 
   it("lists NTOP products without turning Thai list wording into a query", async () => {

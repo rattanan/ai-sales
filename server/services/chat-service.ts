@@ -780,6 +780,7 @@ export async function sendKnowledgeChatMessage(
   }
   const databaseAnswer =
     !attachmentSummaries.length &&
+    !explicitNtopLookup &&
     !ntopOutcome.toolUsed &&
     databaseScope &&
     bot.databaseToolsEnabled
@@ -791,7 +792,10 @@ export async function sendKnowledgeChatMessage(
         })
       : null;
   const legacyApiAnswer =
-    attachmentSummaries.length || databaseAnswer || ntopOutcome.toolUsed
+    attachmentSummaries.length ||
+    explicitNtopLookup ||
+    databaseAnswer ||
+    ntopOutcome.toolUsed
       ? null
       : ["SMART", "ALL_ACCESSIBLE", "API_TOOLS"].includes(scope) &&
           bot.apiToolsEnabled

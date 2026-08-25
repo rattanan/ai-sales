@@ -41,6 +41,9 @@ describe("NTOP per-user attribution", () => {
     expect(chat).toContain(
       "attachmentSummaries.length > 0 && !explicitNtopLookup",
     );
+    expect(chat).toContain(
+      "attachmentSummaries.length ||\n    explicitNtopLookup ||\n    databaseAnswer",
+    );
   });
 
   it("does not suggest an NTOP write without a personal user key", () => {

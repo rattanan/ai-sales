@@ -98,9 +98,12 @@ const SOLUTION_DESIGN_REQUEST =
   /(?:ออกแบบ|(?:ช่วย|ขอ|กรุณา)\s*(?:จัดทำ|ทำ))\s*(?:solution(?:\s*design)?|โซลูชัน)?|\b(?:design|recommend|propose)\s+(?:an?\s+)?solution\b/iu;
 
 export function hasExplicitNtopLookup(message: string) {
+  if (/(?:สร้าง|เพิ่ม|บันทึก|เก็บ|create|add|save)/iu.test(message))
+    return false;
+  const selectsNtop = /(?:(?:จาก|ใน)\s*ntop\b|\bntop\b)/iu.test(message);
   return (
-    LOOKUP_REQUEST.test(message) &&
-    /(?:(?:จาก|ใน)\s*ntop\b|\bntop\b)/iu.test(message)
+    selectsNtop &&
+    (LOOKUP_REQUEST.test(message) || requestedLookupKind(message) !== null)
   );
 }
 
@@ -143,6 +146,10 @@ function explicitNtopQuery(message: string) {
       /\b(?:prospects?|leads?|customers?|opportunit(?:y|ies)|quotations?|quotes?|products?)\b|ลูกค้า|ผู้มุ่งหวัง|โอกาสขาย|ใบเสนอราคา|สินค้า|ผลิตภัณฑ์/giu,
       " ",
     )
+    .replace(
+      /^\s*(?:ที่\s*)?(?:เกี่ยวกับ|เกี่ยวข้อง(?:กับ)?|related\s+to|about)\s*/iu,
+      "",
+    )
     .replace(/\s*(?:ให้หน่อย|ให้ที|หน่อย|ที|ครับ|ค่ะ|คะ)\s*$/iu, "")
     .replace(/\s+/gu, " ")
     .trim();
@@ -182,7 +189,7 @@ function lookupPlan(
   if (/(?:สร้าง|เพิ่ม|บันทึก|เก็บ|create|add|save)/iu.test(message))
     return null;
   if (!kind && !explicitNtop) return null;
-  if (!LOOKUP_REQUEST.test(message)) return null;
+  if (!LOOKUP_REQUEST.test(message) && !(explicitNtop && kind)) return null;
 
   const filter = message
     .match(
