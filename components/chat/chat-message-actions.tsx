@@ -147,46 +147,55 @@ export function ChatMessageActions({
         </time>
       ) : null}
       {onRetry || onEdit || allowCopy ? (
-        <div className="flex items-center gap-2 opacity-100 transition-opacity motion-reduce:transition-none [@media(hover:hover)]:gap-0.5 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/message:opacity-100 [@media(hover:hover)]:group-focus-within/message:opacity-100">
-          {onRetry ? (
-            <button
-              type="button"
-              title={t("Retry message")}
-              aria-label={t("Retry message")}
-              disabled={disabled}
-              onClick={onRetry}
-              className={actionClassName}
-            >
-              <RotateCcw className="size-4" aria-hidden="true" />
-            </button>
-          ) : null}
-          {onEdit ? (
-            <button
-              type="button"
-              title={t("Edit message")}
-              aria-label={t("Edit message")}
-              disabled={disabled}
-              onClick={onEdit}
-              className={actionClassName}
-            >
-              <Pencil className="size-4" aria-hidden="true" />
-            </button>
-          ) : null}
-          {allowCopy ? (
-            <button
-              type="button"
-              title={copyLabel}
-              aria-label={copyLabel}
-              onClick={() => void handleCopy()}
-              className={actionClassName}
-            >
-              {copyStatus === "copied" ? (
-                <Check className="size-4 text-emerald-600" aria-hidden="true" />
-              ) : (
-                <Copy className="size-4" aria-hidden="true" />
-              )}
-            </button>
-          ) : null}
+        /* Held at zero width until revealed, so the timestamp sits flush against
+           the bubble's edge and slides aside as the controls open. The animation
+           is on grid-template-columns because that resolves to the buttons' own
+           width — a max-width guess would clip the day another one is added. */
+        <div className="grid grid-cols-[1fr] transition-[grid-template-columns] duration-200 ease-out motion-reduce:transition-none [@media(hover:hover)]:grid-cols-[0fr] [@media(hover:hover)]:group-focus-within/message:grid-cols-[1fr] [@media(hover:hover)]:group-hover/message:grid-cols-[1fr]">
+          <div className="flex items-center gap-2 overflow-hidden opacity-100 transition-opacity duration-200 motion-reduce:transition-none [@media(hover:hover)]:gap-0.5 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-focus-within/message:opacity-100 [@media(hover:hover)]:group-hover/message:opacity-100">
+            {onRetry ? (
+              <button
+                type="button"
+                title={t("Retry message")}
+                aria-label={t("Retry message")}
+                disabled={disabled}
+                onClick={onRetry}
+                className={actionClassName}
+              >
+                <RotateCcw className="size-4" aria-hidden="true" />
+              </button>
+            ) : null}
+            {onEdit ? (
+              <button
+                type="button"
+                title={t("Edit message")}
+                aria-label={t("Edit message")}
+                disabled={disabled}
+                onClick={onEdit}
+                className={actionClassName}
+              >
+                <Pencil className="size-4" aria-hidden="true" />
+              </button>
+            ) : null}
+            {allowCopy ? (
+              <button
+                type="button"
+                title={copyLabel}
+                aria-label={copyLabel}
+                onClick={() => void handleCopy()}
+                className={actionClassName}
+              >
+                {copyStatus === "copied" ? (
+                  <Check
+                    className="size-4 text-emerald-600"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <Copy className="size-4" aria-hidden="true" />
+                )}
+              </button>
+            ) : null}
+          </div>
         </div>
       ) : null}
       {copyStatus !== "idle" ? (

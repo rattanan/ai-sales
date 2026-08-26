@@ -63,6 +63,28 @@ describe("chat message actions", () => {
     ).toBeTruthy();
   });
 
+  it("keeps the controls collapsed so the timestamp sits flush to the edge", () => {
+    render(
+      <ChatMessageActions
+        content="Compare quarterly sales"
+        createdAt="2026-08-24T12:00:00.000Z"
+        now={new Date("2026-08-26T12:00:00.000Z").getTime()}
+        align="end"
+        onRetry={vi.fn()}
+      />,
+    );
+
+    // Fading alone still reserved the width, which pushed the timestamp off the
+    // right edge while the controls were invisible.
+    const collapsing = screen
+      .getByRole("button", { name: "Retry message" })
+      .closest("div.grid");
+    expect(collapsing?.className).toContain("grid-cols-[0fr]");
+    expect(collapsing?.className).toContain(
+      "group-hover/message:grid-cols-[1fr]",
+    );
+  });
+
   it("localizes action labels and submits an inline edit from the keyboard", () => {
     const submit = vi.fn();
     render(
