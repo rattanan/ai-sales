@@ -19,6 +19,7 @@ import { CitationSources } from "@/components/chat/citation-sources";
 import { MarkdownMessage } from "@/components/chat/markdown-message";
 import { ChatArtifactList } from "@/components/chat/chat-artifacts";
 import { readChatStream } from "@/lib/chat-stream";
+import { useComposerReveal } from "@/components/chat/use-composer-reveal";
 import { NtopActionCard } from "@/components/chat/ntop-action-card";
 import {
   ChatAttachmentPicker,
@@ -121,13 +122,18 @@ export function KnowledgeChat({
    * the bottom — scrolling up to re-read something must not be yanked back.
    */
   const logRef = useRef<HTMLOListElement>(null);
-  const followingRef = useRef(true);
+  const {
+    composerRef,
+    composerHidden,
+    transcriptPadding,
+    trackScroll,
+    followLatest,
+    revealComposer,
+  } = useComposerReveal(input);
 
   useEffect(() => {
-    const log = logRef.current;
-    if (!log || !followingRef.current) return;
-    log.scrollTop = log.scrollHeight;
-  }, [messages, pending, streaming]);
+    followLatest(logRef.current);
+  }, [messages, pending, streaming, followLatest]);
 
   async function send(text = input) {
     const filesToSend = attachedFiles;
@@ -340,7 +346,7 @@ export function KnowledgeChat({
           )}
         </div>
       </aside>
-      <section className="flex min-h-0 flex-col">
+      <section className="relative flex min-h-0 flex-col">
         <header className="flex flex-wrap items-center gap-3 border-b px-5 py-4">
           <span className="grid size-10 place-items-center rounded-xl bg-indigo-100 text-indigo-700">
             <Bot size={20} />
@@ -367,12 +373,13 @@ export function KnowledgeChat({
         <ol
           ref={logRef}
           aria-live="polite"
-          onScroll={(event) => {
-            const log = event.currentTarget;
-            followingRef.current =
-              log.scrollHeight - log.scrollTop - log.clientHeight < 48;
-          }}
-          className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5 sm:p-7"
+          onScroll={(event) => trackScroll(event.currentTarget)}
+          style={
+            transcriptPadding === undefined
+              ? undefined
+              : { paddingBottom: transcriptPadding }
+          }
+          className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5 transition-[padding] duration-300 ease-out motion-reduce:transition-none sm:p-7"
         >
           {!messages.length ? (
             <li className="mx-auto max-w-2xl rounded-2xl border border-indigo-100 bg-indigo-50/70 p-6 text-center">
@@ -514,61 +521,74 @@ export function KnowledgeChat({
             </li>
           ) : null}
         </ol>
-        <div className="border-t bg-card p-4 sm:p-5">
-          <p aria-live="assertive" className="mb-2 text-sm text-destructive">
-            {error}
-          </p>
-          <PromptInput
-            value={input}
-            onValueChange={setInput}
-            onSubmit={() => void send()}
-            loading={pending}
-            className="mx-auto max-w-4xl"
-          >
-            <PromptInputTextarea
-              aria-label={`Message ${bot.name}`}
-              placeholder="Ask about your attached files or permitted knowledge…"
-            />
-            {attachedFiles.length ? (
-              <div className="px-1 pb-1">
-                <ChatSelectedAttachments
-                  files={attachedFiles}
-                  disabled={pending}
-                  onChange={setAttachedFiles}
-                />
-              </div>
-            ) : null}
-            <PromptInputToolbar>
-              <PromptInputActions>
-                <ChatAttachmentPicker
-                  files={attachedFiles}
-                  disabled={pending}
-                  onChange={setAttachedFiles}
-                  onError={(message) => setError(message || undefined)}
-                  className="size-11 min-h-11 rounded-full"
-                />
-                {webSearchAvailable ? (
-                  <PromptInputButton
-                    active={webSearch}
-                    aria-pressed={webSearch}
-                    disabled={pending}
-                    title="Search the live web for this message"
-                    onClick={() => setWebSearch((enabled) => !enabled)}
-                  >
-                    <Globe2 size={17} aria-hidden="true" /> Search
-                  </PromptInputButton>
-                ) : null}
-              </PromptInputActions>
-              <PromptInputSubmit
-                disabled={!input.trim() && !attachedFiles.length}
+        <div
+          ref={composerRef}
+          onFocusCapture={revealComposer}
+          className={`absolute inset-x-0 bottom-0 transition-transform duration-300 ease-out motion-reduce:transition-none ${composerHidden ? "translate-y-full" : "translate-y-0"}`}
+        >
+          {/* Replaces the divider: the transcript fades into the composer
+              instead of being cut off from it. */}
+          <div
+            aria-hidden
+            className="pointer-events-none h-6 bg-gradient-to-b from-card/0 to-card"
+          />
+          <div className="bg-card px-4 pb-4 sm:px-5 sm:pb-5">
+            <p aria-live="assertive" className="mb-2 text-sm text-destructive">
+              {error}
+            </p>
+            <PromptInput
+              value={input}
+              onValueChange={setInput}
+              onSubmit={() => void send()}
+              loading={pending}
+              className="mx-auto max-w-4xl"
+            >
+              <PromptInputTextarea
+                aria-label={`Message ${bot.name}`}
+                placeholder="Ask about your attached files or permitted knowledge…"
               />
-            </PromptInputToolbar>
-          </PromptInput>
-          <p className="mx-auto mt-2 max-w-4xl text-xs text-muted-foreground">
-            Enter to send · Shift + Enter for a new line. Attached files are
-            read for this message only and are not added to the Knowledge Base.
-            {webSearch ? " Live web sources are on for this message." : null}
-          </p>
+              {attachedFiles.length ? (
+                <div className="px-1 pb-1">
+                  <ChatSelectedAttachments
+                    files={attachedFiles}
+                    disabled={pending}
+                    onChange={setAttachedFiles}
+                  />
+                </div>
+              ) : null}
+              <PromptInputToolbar>
+                <PromptInputActions>
+                  <ChatAttachmentPicker
+                    files={attachedFiles}
+                    disabled={pending}
+                    onChange={setAttachedFiles}
+                    onError={(message) => setError(message || undefined)}
+                    className="size-11 min-h-11 rounded-full"
+                  />
+                  {webSearchAvailable ? (
+                    <PromptInputButton
+                      active={webSearch}
+                      aria-pressed={webSearch}
+                      disabled={pending}
+                      title="Search the live web for this message"
+                      onClick={() => setWebSearch((enabled) => !enabled)}
+                    >
+                      <Globe2 size={17} aria-hidden="true" /> Search
+                    </PromptInputButton>
+                  ) : null}
+                </PromptInputActions>
+                <PromptInputSubmit
+                  disabled={!input.trim() && !attachedFiles.length}
+                />
+              </PromptInputToolbar>
+            </PromptInput>
+            <p className="mx-auto mt-2 max-w-4xl text-xs text-muted-foreground">
+              Enter to send · Shift + Enter for a new line. Attached files are
+              read for this message only and are not added to the Knowledge
+              Base.
+              {webSearch ? " Live web sources are on for this message." : null}
+            </p>
+          </div>
         </div>
       </section>
     </div>

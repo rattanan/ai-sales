@@ -39,6 +39,7 @@ import {
 import { SelectMenu, type SelectMenuOption } from "@/components/ui/select-menu";
 import { rememberThinkLevel, type ThinkLevel } from "@/lib/chat-preferences";
 import { useWorkspaceLocale } from "@/components/layout/workspace-locale";
+import { useComposerReveal } from "@/components/chat/use-composer-reveal";
 import { MessageFeedbackButtons } from "@/components/chat/message-feedback-buttons";
 import { readChatStream } from "@/lib/chat-stream";
 import { NtopActionCard } from "@/components/chat/ntop-action-card";
@@ -275,17 +276,20 @@ export function UniversalChat({
     [selectedDocuments, sources],
   );
 
-  /**
-   * The transcript scrolls inside its own box now, so a new answer would land
-   * below the fold without this. It only follows while the reader is already at
-   * the bottom — scrolling up to re-read something must not be yanked back.
-   */
   const logRef = useRef<HTMLDivElement>(null);
-  const followingRef = useRef(true);
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  const {
+    composerRef: composerBoxRef,
+    composerHidden,
+    transcriptPadding,
+    trackScroll,
+    followLatest,
+    revealComposer,
+  } = useComposerReveal(message);
 
   function startPrompt(text: string) {
     setMessage(text);
+    revealComposer();
     const field = composerRef.current;
     if (!field) return;
     field.focus();
@@ -297,10 +301,8 @@ export function UniversalChat({
   }
 
   useEffect(() => {
-    const log = logRef.current;
-    if (!log || !followingRef.current) return;
-    log.scrollTop = log.scrollHeight;
-  }, [messages, liveTrace, pending]);
+    followLatest(logRef.current);
+  }, [messages, liveTrace, pending, followLatest]);
 
   useEffect(() => {
     if (!sourcePanelOpen) return;
@@ -526,7 +528,7 @@ export function UniversalChat({
           ) : null}
         </nav>
       </aside>
-      <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border bg-card">
+      <section className="relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border bg-card">
         <header className="border-b p-4">
           <div className="flex flex-wrap items-center gap-2">
             <Sparkles className="text-primary" size={20} />
@@ -597,12 +599,13 @@ export function UniversalChat({
           ref={logRef}
           role="log"
           aria-live="polite"
-          onScroll={(event) => {
-            const log = event.currentTarget;
-            followingRef.current =
-              log.scrollHeight - log.scrollTop - log.clientHeight < 48;
-          }}
-          className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-slate-50/60 p-4 sm:p-6"
+          onScroll={(event) => trackScroll(event.currentTarget)}
+          style={
+            transcriptPadding === undefined
+              ? undefined
+              : { paddingBottom: transcriptPadding }
+          }
+          className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-slate-50/60 p-4 transition-[padding] duration-300 ease-out motion-reduce:transition-none sm:p-6"
         >
           {!messages.length ? (
             <div className="mx-auto mt-12 max-w-2xl">
@@ -734,91 +737,103 @@ export function UniversalChat({
             </p>
           ) : null}
         </div>
-        <div className="border-t bg-card p-4">
-          <p role="alert" className="mb-2 text-sm text-destructive">
-            {error}
-          </p>
-          <PromptInput
-            value={message}
-            onValueChange={setMessage}
-            onSubmit={() => void send()}
-            loading={pending}
-            textareaRef={composerRef}
-          >
-            <PromptInputTextarea
-              aria-label="Message AI-Sales"
-              placeholder="Ask AI-Sales…"
-            />
-            {attachedFiles.length ? (
-              <div className="px-1 pb-1">
-                <ChatSelectedAttachments
-                  files={attachedFiles}
-                  disabled={pending}
-                  onChange={setAttachedFiles}
-                />
-              </div>
-            ) : null}
-            <PromptInputToolbar>
-              <PromptInputActions>
-                <ChatAttachmentPicker
-                  files={attachedFiles}
-                  disabled={pending}
-                  onChange={setAttachedFiles}
-                  onError={setError}
-                  className="size-11 min-h-11 rounded-full"
-                />
-                {webSearchAvailable ? (
-                  <PromptInputButton
-                    active={webSearch}
-                    aria-pressed={webSearch}
-                    disabled={pending}
-                    title="Search the live web for this message"
-                    onClick={() => setWebSearch((enabled) => !enabled)}
-                  >
-                    <Globe2 size={17} aria-hidden="true" /> Search
-                  </PromptInputButton>
-                ) : null}
-                <SelectMenu
-                  label="ระดับการคิด"
-                  value={thinkLevel}
-                  options={THINK_LEVEL_OPTIONS}
-                  onChange={(level) => {
-                    setThinkLevel(level);
-                    rememberThinkLevel(level);
-                  }}
-                  disabled={pending}
-                  variant="pill"
-                  side="top"
-                  icon={Brain}
-                />
-                <PromptInputButton
-                  active={showSources}
-                  aria-controls="chat-source-panel"
-                  aria-expanded={sourcePanelOpen}
-                  onClick={() => setSourcePanelOpen((open) => !open)}
-                >
-                  <Library size={17} aria-hidden="true" /> Sources
-                  {selectedDocumentIds.length ? (
-                    <span className="rounded-full bg-primary px-1.5 py-0.5 text-[11px] leading-none font-bold text-primary-foreground tabular-nums">
-                      {selectedDocumentIds.length}
-                    </span>
-                  ) : null}
-                </PromptInputButton>
-              </PromptInputActions>
-              <PromptInputSubmit
-                disabled={!message.trim() && !attachedFiles.length}
+        <div
+          ref={composerBoxRef}
+          onFocusCapture={revealComposer}
+          className={`absolute inset-x-0 bottom-0 transition-transform duration-300 ease-out motion-reduce:transition-none ${composerHidden ? "translate-y-full" : "translate-y-0"}`}
+        >
+          {/* Replaces the divider: the transcript fades into the composer
+              instead of being cut off from it. */}
+          <div
+            aria-hidden
+            className="pointer-events-none h-6 bg-gradient-to-b from-card/0 to-card"
+          />
+          <div className="bg-card px-4 pb-4">
+            <p role="alert" className="mb-2 text-sm text-destructive">
+              {error}
+            </p>
+            <PromptInput
+              value={message}
+              onValueChange={setMessage}
+              onSubmit={() => void send()}
+              loading={pending}
+              textareaRef={composerRef}
+            >
+              <PromptInputTextarea
+                aria-label="Message AI-Sales"
+                placeholder="Ask AI-Sales…"
               />
-            </PromptInputToolbar>
-          </PromptInput>
-          <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            <span>Enter to send · Shift + Enter for a new line</span>
-            <span>Attach up to 3 supported documents.</span>
-            {webSearch ? (
-              <span className="font-medium text-foreground">
-                Live web sources are on for this message.
-              </span>
-            ) : null}
-          </p>
+              {attachedFiles.length ? (
+                <div className="px-1 pb-1">
+                  <ChatSelectedAttachments
+                    files={attachedFiles}
+                    disabled={pending}
+                    onChange={setAttachedFiles}
+                  />
+                </div>
+              ) : null}
+              <PromptInputToolbar>
+                <PromptInputActions>
+                  <ChatAttachmentPicker
+                    files={attachedFiles}
+                    disabled={pending}
+                    onChange={setAttachedFiles}
+                    onError={setError}
+                    className="size-11 min-h-11 rounded-full"
+                  />
+                  {webSearchAvailable ? (
+                    <PromptInputButton
+                      active={webSearch}
+                      aria-pressed={webSearch}
+                      disabled={pending}
+                      title="Search the live web for this message"
+                      onClick={() => setWebSearch((enabled) => !enabled)}
+                    >
+                      <Globe2 size={17} aria-hidden="true" /> Search
+                    </PromptInputButton>
+                  ) : null}
+                  <SelectMenu
+                    label="ระดับการคิด"
+                    value={thinkLevel}
+                    options={THINK_LEVEL_OPTIONS}
+                    onChange={(level) => {
+                      setThinkLevel(level);
+                      rememberThinkLevel(level);
+                    }}
+                    disabled={pending}
+                    variant="pill"
+                    side="top"
+                    icon={Brain}
+                  />
+                  <PromptInputButton
+                    active={showSources}
+                    aria-controls="chat-source-panel"
+                    aria-expanded={sourcePanelOpen}
+                    onClick={() => setSourcePanelOpen((open) => !open)}
+                  >
+                    <Library size={17} aria-hidden="true" /> Sources
+                    {selectedDocumentIds.length ? (
+                      <span className="rounded-full bg-primary px-1.5 py-0.5 text-[11px] leading-none font-bold text-primary-foreground tabular-nums">
+                        {selectedDocumentIds.length}
+                      </span>
+                    ) : null}
+                  </PromptInputButton>
+                </PromptInputActions>
+                <PromptInputSubmit
+                  disabled={!message.trim() && !attachedFiles.length}
+                />
+              </PromptInputToolbar>
+            </PromptInput>
+            <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              <span>Enter to send · Shift + Enter for a new line</span>
+              <span>Attach up to 3 supported documents.</span>
+              {webSearch ? (
+                <span className="font-medium text-foreground">
+                  Live web sources are on for this message.
+                </span>
+              ) : null}
+            </p>
+          </div>
         </div>
       </section>
       {sourcePanelOpen ? (
