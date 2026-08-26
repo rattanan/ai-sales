@@ -17,16 +17,16 @@ import {
 } from "@/lib/agent-trace";
 import {
   Brain,
-  Database,
+  Building2,
   Download,
   FileText,
   Globe2,
   LoaderCircle,
   MessageSquarePlus,
   Library,
-  PlugZap,
   Search,
   Sparkles,
+  UserSearch,
 } from "lucide-react";
 import {
   PromptInput,
@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/prompt-input";
 import { SelectMenu, type SelectMenuOption } from "@/components/ui/select-menu";
 import { rememberThinkLevel, type ThinkLevel } from "@/lib/chat-preferences";
+import { useWorkspaceLocale } from "@/components/layout/workspace-locale";
 import { MessageFeedbackButtons } from "@/components/chat/message-feedback-buttons";
 import { readChatStream } from "@/lib/chat-stream";
 import { NtopActionCard } from "@/components/chat/ntop-action-card";
@@ -160,6 +161,54 @@ const THINK_LEVEL_OPTIONS: Array<SelectMenuOption<ThinkLevel>> = [
   { value: "high", label: "คิดลึก", hint: "ละเอียดกว่า แต่ช้ากว่ามาก" },
 ];
 
+/**
+ * What the agent actually does with a sales question, in the order it happens.
+ * The duplicate check is a real step rather than a selling point: every NTOP
+ * write tool is told to search first, and a write is only ever a proposal
+ * waiting on the confirmation card.
+ */
+const SALES_WORKFLOW = [
+  {
+    title: "Search",
+    detail:
+      "Customers, deals, quotations, and products in NTOP, alongside the documents you may access.",
+  },
+  {
+    title: "Check for duplicates",
+    detail:
+      "NTOP is searched for an existing record before anything is proposed.",
+  },
+  {
+    title: "Propose the record",
+    detail:
+      "A prospect or an opportunity, written only after you press confirm.",
+  },
+];
+
+/**
+ * Each one drops a usable sentence into the composer and leaves the caret at
+ * the end, where the company name goes — the old chips inserted their own
+ * label, which was never a question anyone wanted to send.
+ */
+const STARTER_PROMPTS = [
+  {
+    icon: UserSearch,
+    label: "This customer",
+    prompt: "Open opportunities and the latest quotation for customer ",
+  },
+  {
+    icon: Building2,
+    label: "A new company",
+    prompt:
+      "Check NTOP for this company, and propose a prospect if it is not there yet: ",
+  },
+  {
+    icon: FileText,
+    label: "Price and specs",
+    prompt: "Search the documents for the price and specification of ",
+  },
+];
+
 export function UniversalChat({
   bots,
   sources,
@@ -207,6 +256,7 @@ export function UniversalChat({
   const [error, setError] = useState("");
   const [webSearch, setWebSearch] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const { t } = useWorkspaceLocale();
   const showBot = scope === "SPECIFIC_BOT";
   const showSources = scope === "SPECIFIC_SOURCES";
   const selectedDocuments = useMemo(
@@ -232,6 +282,19 @@ export function UniversalChat({
    */
   const logRef = useRef<HTMLDivElement>(null);
   const followingRef = useRef(true);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+
+  function startPrompt(text: string) {
+    setMessage(text);
+    const field = composerRef.current;
+    if (!field) return;
+    field.focus();
+    // The new value only reaches the DOM on the next paint, so the caret is
+    // placed after it lands. Every starter prompt ends where the typing goes on.
+    requestAnimationFrame(() =>
+      field.setSelectionRange(text.length, text.length),
+    );
+  }
 
   useEffect(() => {
     const log = logRef.current;
@@ -542,36 +605,45 @@ export function UniversalChat({
           className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-slate-50/60 p-4 sm:p-6"
         >
           {!messages.length ? (
-            <div className="mx-auto mt-16 max-w-xl text-center">
-              <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-secondary text-secondary-foreground">
-                <Sparkles />
-              </span>
-              <h2 className="mt-5 text-xl font-semibold">
-                Ask across governed knowledge
-              </h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Smart routing selects an accessible bot, governed documents, and
-                read-only live tools. Change scope at any turn.
-              </p>
-              <div className="mt-5 grid gap-2 sm:grid-cols-3">
-                {[
-                  [FileText, "Find a policy"],
-                  [Database, "Query live data"],
-                  [PlugZap, "Check an API"],
-                ].map(([Icon, label]) => {
-                  const ItemIcon = Icon as typeof FileText;
-                  return (
-                    <button
-                      key={label as string}
-                      type="button"
-                      onClick={() => setMessage(label as string)}
-                      className="min-h-11 rounded-lg border bg-white px-3 text-sm"
+            <div className="mx-auto mt-12 max-w-2xl">
+              <div className="text-center">
+                <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-secondary text-secondary-foreground">
+                  <Sparkles />
+                </span>
+                <h2 className="mt-5 text-xl font-semibold">
+                  {t("From a question to a record in NTOP")}
+                </h2>
+              </div>
+              <ol className="mx-auto mt-6 max-w-md space-y-3 text-left">
+                {SALES_WORKFLOW.map((stage, index) => (
+                  <li key={stage.title} className="flex gap-3">
+                    <span
+                      aria-hidden
+                      className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground"
                     >
-                      <ItemIcon className="mr-2 inline" size={16} />
-                      {label as string}
-                    </button>
-                  );
-                })}
+                      {index + 1}
+                    </span>
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-medium text-foreground">
+                        {t(stage.title)}
+                      </span>{" "}
+                      — {t(stage.detail)}
+                    </p>
+                  </li>
+                ))}
+              </ol>
+              <div className="mt-7 grid gap-2 sm:grid-cols-3">
+                {STARTER_PROMPTS.map(({ icon: Icon, label, prompt }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => startPrompt(t(prompt))}
+                    className="flex min-h-11 items-center justify-center gap-2 rounded-lg border bg-white px-3 text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                  >
+                    <Icon size={16} className="shrink-0" />
+                    {t(label)}…
+                  </button>
+                ))}
               </div>
             </div>
           ) : null}
@@ -671,6 +743,7 @@ export function UniversalChat({
             onValueChange={setMessage}
             onSubmit={() => void send()}
             loading={pending}
+            textareaRef={composerRef}
           >
             <PromptInputTextarea
               aria-label="Message AI-Sales"

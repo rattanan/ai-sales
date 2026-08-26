@@ -274,6 +274,28 @@ const thaiTranslations: Record<string, string> = {
   "Switch to English": "เปลี่ยนเป็นภาษาอังกฤษ",
   "All rights reserved.": "สงวนลิขสิทธิ์",
   Version: "เวอร์ชัน",
+
+  // Universal Chat empty state. The three steps describe the real path a sales
+  // turn takes, so the numbering carries order rather than decoration.
+  "From a question to a record in NTOP": "จากคำถาม ถึงบันทึกใน NTOP",
+  Search: "ค้นหา",
+  "Customers, deals, quotations, and products in NTOP, alongside the documents you may access.":
+    "ลูกค้า ดีล ใบเสนอราคา และสินค้าใน NTOP รวมถึงเอกสารที่คุณมีสิทธิ์เข้าถึง",
+  "Check for duplicates": "ตรวจข้อมูลซ้ำ",
+  "NTOP is searched for an existing record before anything is proposed.":
+    "ค้นใน NTOP ว่ามีข้อมูลอยู่แล้วหรือยัง ก่อนเสนอสร้างทุกครั้ง",
+  "Propose the record": "เสนอบันทึก",
+  "A prospect or an opportunity, written only after you press confirm.":
+    "ผู้มุ่งหวังหรือโอกาสขาย จะบันทึกเมื่อคุณกดยืนยันเท่านั้น",
+  "This customer": "ลูกค้ารายนี้",
+  "Open opportunities and the latest quotation for customer ":
+    "โอกาสขายที่เปิดอยู่และใบเสนอราคาล่าสุดของลูกค้า ",
+  "A new company": "บริษัทใหม่",
+  "Check NTOP for this company, and propose a prospect if it is not there yet: ":
+    "ตรวจใน NTOP ว่ามีบริษัทนี้แล้วหรือยัง ถ้ายังไม่มีให้เสนอสร้างผู้มุ่งหวัง: ",
+  "Price and specs": "ราคาและสเปค",
+  "Search the documents for the price and specification of ":
+    "ค้นเอกสารเรื่องราคาและสเปคของ ",
 };
 
 export function translateWorkspaceText(text: string, locale: WorkspaceLocale) {

@@ -67,8 +67,34 @@ describe("universal chat navigation", () => {
 
     expect(screen.queryByText(existingMessage.content)).toBeNull();
     expect(
-      screen.getByRole("heading", { name: "Ask across governed knowledge" }),
+      screen.getByRole("heading", {
+        name: "From a question to a record in NTOP",
+      }),
     ).toBeTruthy();
+  });
+
+  it("starts a usable sentence from a starter prompt instead of its label", () => {
+    renderChat();
+
+    fireEvent.click(screen.getByRole("link", { name: /new chat/i }));
+    fireEvent.click(screen.getByRole("button", { name: /a new company/i }));
+
+    const field = screen.getByRole("textbox", { name: "Message AI-Sales" });
+    expect((field as HTMLTextAreaElement).value).toBe(
+      "Check NTOP for this company, and propose a prospect if it is not there yet: ",
+    );
+    expect(document.activeElement).toBe(field);
+  });
+
+  it("lays out the sales workflow as three ordered steps", () => {
+    renderChat();
+
+    fireEvent.click(screen.getByRole("link", { name: /new chat/i }));
+
+    const steps = screen.getByRole("list").querySelectorAll("li");
+    expect(steps).toHaveLength(3);
+    expect(steps[0]?.textContent).toContain("Search");
+    expect(steps[2]?.textContent).toContain("Propose the record");
   });
 
   it("shows the saved state after helpful feedback is submitted", async () => {

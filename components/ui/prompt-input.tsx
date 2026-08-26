@@ -55,6 +55,7 @@ export function PromptInput({
   className,
   children,
   onClick,
+  textareaRef: providedRef,
   ...props
 }: {
   value: string;
@@ -64,9 +65,15 @@ export function PromptInput({
   loading?: boolean;
   disabled?: boolean;
   maxHeight?: number;
+  /**
+   * Lets the page reach the field — to focus it, or place the caret — from a
+   * control that sits outside the composer, such as a starter prompt.
+   */
+  textareaRef?: RefObject<HTMLTextAreaElement | null>;
   children: ReactNode;
 } & Omit<ComponentProps<"div">, "onSubmit" | "children">) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const ownRef = useRef<HTMLTextAreaElement>(null);
+  const textareaRef = providedRef ?? ownRef;
 
   function focusFromEmptySpace(event: MouseEvent<HTMLDivElement>) {
     onClick?.(event);
