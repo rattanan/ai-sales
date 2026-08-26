@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bot, Globe2, Plus, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -115,6 +115,20 @@ export function KnowledgeChat({
     [conversations, search],
   );
 
+  /**
+   * The transcript scrolls inside its own box now, so a new answer would land
+   * below the fold without this. It only follows while the reader is already at
+   * the bottom — scrolling up to re-read something must not be yanked back.
+   */
+  const logRef = useRef<HTMLOListElement>(null);
+  const followingRef = useRef(true);
+
+  useEffect(() => {
+    const log = logRef.current;
+    if (!log || !followingRef.current) return;
+    log.scrollTop = log.scrollHeight;
+  }, [messages, pending, streaming]);
+
   async function send(text = input) {
     const filesToSend = attachedFiles;
     const message =
@@ -220,7 +234,7 @@ export function KnowledgeChat({
   }
 
   return (
-    <div className="grid min-h-[calc(100dvh-9rem)] overflow-hidden rounded-2xl border bg-card lg:grid-cols-[290px_1fr]">
+    <div className="grid h-[calc(100dvh-9rem)] min-h-[520px] overflow-hidden rounded-2xl border bg-card lg:grid-cols-[290px_1fr]">
       <aside className="border-b bg-slate-50/80 p-4 lg:border-b-0 lg:border-r">
         <Button asChild variant="outline" className="w-full">
           <Link href={`/workspace/chat/${bot.id}`}>
@@ -326,7 +340,7 @@ export function KnowledgeChat({
           )}
         </div>
       </aside>
-      <section className="flex min-h-[680px] flex-col">
+      <section className="flex min-h-0 flex-col">
         <header className="flex flex-wrap items-center gap-3 border-b px-5 py-4">
           <span className="grid size-10 place-items-center rounded-xl bg-indigo-100 text-indigo-700">
             <Bot size={20} />
@@ -351,8 +365,14 @@ export function KnowledgeChat({
           ) : null}
         </header>
         <ol
+          ref={logRef}
           aria-live="polite"
-          className="flex-1 space-y-5 overflow-y-auto p-5 sm:p-7"
+          onScroll={(event) => {
+            const log = event.currentTarget;
+            followingRef.current =
+              log.scrollHeight - log.scrollTop - log.clientHeight < 48;
+          }}
+          className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5 sm:p-7"
         >
           {!messages.length ? (
             <li className="mx-auto max-w-2xl rounded-2xl border border-indigo-100 bg-indigo-50/70 p-6 text-center">

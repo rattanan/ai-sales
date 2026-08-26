@@ -225,6 +225,20 @@ export function UniversalChat({
     [selectedDocuments, sources],
   );
 
+  /**
+   * The transcript scrolls inside its own box now, so a new answer would land
+   * below the fold without this. It only follows while the reader is already at
+   * the bottom — scrolling up to re-read something must not be yanked back.
+   */
+  const logRef = useRef<HTMLDivElement>(null);
+  const followingRef = useRef(true);
+
+  useEffect(() => {
+    const log = logRef.current;
+    if (!log || !followingRef.current) return;
+    log.scrollTop = log.scrollHeight;
+  }, [messages, liveTrace, pending]);
+
   useEffect(() => {
     if (!sourcePanelOpen) return;
     function closeOnEscape(event: KeyboardEvent) {
@@ -400,9 +414,9 @@ export function UniversalChat({
 
   return (
     <div
-      className={`grid min-h-[calc(100dvh-10rem)] gap-5 xl:grid-cols-[290px_minmax(0,1fr)] ${sourcePanelOpen ? "2xl:grid-cols-[290px_minmax(0,1fr)_320px]" : ""}`}
+      className={`grid h-[calc(100dvh-10rem)] min-h-[520px] gap-5 xl:grid-cols-[290px_minmax(0,1fr)] ${sourcePanelOpen ? "2xl:grid-cols-[290px_minmax(0,1fr)_320px]" : ""}`}
     >
-      <aside className="rounded-xl border bg-card p-4">
+      <aside className="flex flex-col overflow-hidden rounded-xl border bg-card p-4">
         <Link
           href="/workspace/chat"
           onClick={startNewChat}
@@ -425,7 +439,7 @@ export function UniversalChat({
         </form>
         <nav
           aria-label="Conversations"
-          className="mt-4 max-h-[60dvh] space-y-1 overflow-y-auto"
+          className="mt-4 min-h-0 flex-1 space-y-1 overflow-y-auto"
         >
           {conversations.map((conversation) => (
             <Link
@@ -449,7 +463,7 @@ export function UniversalChat({
           ) : null}
         </nav>
       </aside>
-      <section className="flex min-h-[680px] min-w-0 flex-col overflow-hidden rounded-xl border bg-card">
+      <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border bg-card">
         <header className="border-b p-4">
           <div className="flex flex-wrap items-center gap-2">
             <Sparkles className="text-primary" size={20} />
@@ -517,8 +531,14 @@ export function UniversalChat({
           ) : null}
         </header>
         <div
+          ref={logRef}
           role="log"
           aria-live="polite"
+          onScroll={(event) => {
+            const log = event.currentTarget;
+            followingRef.current =
+              log.scrollHeight - log.scrollTop - log.clientHeight < 48;
+          }}
           className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-slate-50/60 p-4 sm:p-6"
         >
           {!messages.length ? (
