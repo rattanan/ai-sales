@@ -31,6 +31,16 @@ export const aiEndpointSchema = z
       (value) => value === true || value === "on",
       z.boolean(),
     ),
+    // An unchecked checkbox is absent from FormData, so `undefined` must read
+    // as false rather than failing validation.
+    supportsToolCalling: z.preprocess(
+      (value) => value === true || value === "on",
+      z.boolean(),
+    ),
+    supportsReasoningEffort: z.preprocess(
+      (value) => value === true || value === "on",
+      z.boolean(),
+    ),
   })
   .superRefine((value, context) => {
     if (value.kind === "CHAT" && value.providerType === "OLLAMA")

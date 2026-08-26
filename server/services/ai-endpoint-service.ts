@@ -123,6 +123,13 @@ export async function saveAiEndpoint(
         timeoutMs: input.timeoutMs,
         maxRetries: input.maxRetries,
         active: input.active,
+        // Only a chat endpoint can be asked for tool calls or a reasoning
+        // effort, so an embedding endpoint always records both as false rather
+        // than carrying a value nothing reads.
+        supportsToolCalling:
+          input.kind === "CHAT" ? input.supportsToolCalling : false,
+        supportsReasoningEffort:
+          input.kind === "CHAT" ? input.supportsReasoningEffort : false,
       };
       const endpoint = existing
         ? await tx.aiEndpointConfig.update({

@@ -34,6 +34,8 @@ export type AiEndpointFormValue = {
   timeoutMs: number;
   maxRetries: number;
   active: boolean;
+  supportsToolCalling: boolean;
+  supportsReasoningEffort: boolean;
   credentialPresent: boolean;
 };
 
@@ -314,6 +316,42 @@ export function AiEndpointForm({
           <input name="active" type="checkbox" defaultChecked={value?.active} />
           Use as the active {embedding ? "embedding" : "chat"} endpoint
         </label>
+        {embedding ? null : (
+          <div className="space-y-3 md:col-span-2">
+            <label className="flex min-h-11 items-start gap-3 rounded-lg border px-3 py-2 text-sm">
+              <input
+                name="supportsToolCalling"
+                type="checkbox"
+                className="mt-1"
+                defaultChecked={value?.supportsToolCalling}
+              />
+              <span>
+                Model supports tool calling
+                <span className="mt-0.5 block text-xs text-muted-foreground">
+                  Required before a bot can run an agentic turn. Leave off if
+                  unsure: a provider that does not accept a `tools` array
+                  rejects the whole request, and the turn fails rather than
+                  degrading.
+                </span>
+              </span>
+            </label>
+            <label className="flex min-h-11 items-start gap-3 rounded-lg border px-3 py-2 text-sm">
+              <input
+                name="supportsReasoningEffort"
+                type="checkbox"
+                className="mt-1"
+                defaultChecked={value?.supportsReasoningEffort}
+              />
+              <span>
+                Model accepts a reasoning effort
+                <span className="mt-0.5 block text-xs text-muted-foreground">
+                  Lets the thinking level chosen in chat reach the provider.
+                  Without it the choice is silently ignored.
+                </span>
+              </span>
+            </label>
+          </div>
+        )}
         <div className="space-y-3 md:col-span-2">
           <ActionMessage state={state} />
           <Button disabled={pending}>

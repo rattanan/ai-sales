@@ -69,6 +69,8 @@ export async function AiEndpointConfigurationPage({
                   timeoutMs: endpoint.timeoutMs,
                   maxRetries: endpoint.maxRetries,
                   active: endpoint.active,
+                  supportsToolCalling: endpoint.supportsToolCalling,
+                  supportsReasoningEffort: endpoint.supportsReasoningEffort,
                   credentialPresent: Boolean(endpoint.credential),
                 }
               : undefined
