@@ -1,262 +1,170 @@
 #!/usr/bin/env bash
-
 set -Eeuo pipefail
 
-SSH_TARGET="${DEPLOY_SSH_TARGET:-ntop}"
-REMOTE_DIR="${DEPLOY_REMOTE_DIR:-__DEFAULT__}"
-DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
-HEALTH_TIMEOUT_SECONDS="${DEPLOY_HEALTH_TIMEOUT_SECONDS:-240}"
-CHECK_ONLY="${DEPLOY_CHECK_ONLY:-0}"
+APP_DIR="/opt/apps/ai-sales"
+WEB_APP_NAME="ai-sales-web"
+WORKER_APP_NAME="ai-sales-worker"
+INFRA_COMPOSE_FILE="docker-compose.infrastructure.yml"
+WEB_HEALTH_URL="http://127.0.0.1:3002/login"
+HEALTH_RETRIES="${HEALTH_RETRIES:-30}"
+HEALTH_RETRY_DELAY="${HEALTH_RETRY_DELAY:-2}"
 
-usage() {
-  cat <<'EOF'
-Deploy AI-Sales to a remote Docker Compose host and verify the complete stack.
+cd "$APP_DIR"
 
-Usage:
-  ./deploy.sh
-
-Optional environment variables:
-  DEPLOY_SSH_TARGET                 SSH host or alias (default: ntop)
-  DEPLOY_REMOTE_DIR                 Remote repository (default: $HOME/ai-sales)
-  DEPLOY_BRANCH                     Git branch (default: main)
-  DEPLOY_HEALTH_TIMEOUT_SECONDS     Per-service timeout (default: 240)
-  DEPLOY_CHECK_ONLY=1               Skip Git/deploy and run readiness checks only
-
-Examples:
-  ./deploy.sh
-  DEPLOY_REMOTE_DIR=/opt/ai-sales ./deploy.sh
-  DEPLOY_CHECK_ONLY=1 ./deploy.sh
-EOF
-}
-
-if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-  usage
-  exit 0
+exec 9>"$APP_DIR/.deploy.lock"
+if ! flock -n 9; then
+  echo "Another deployment is already running." >&2
+  exit 1
 fi
-
-if [[ ! "$SSH_TARGET" =~ ^[A-Za-z0-9._@:-]+$ || "$SSH_TARGET" == -* ]]; then
-  echo "DEPLOY_SSH_TARGET contains unsupported characters." >&2
-  exit 2
-fi
-if [[ "$REMOTE_DIR" != "__DEFAULT__" && ! "$REMOTE_DIR" =~ ^[A-Za-z0-9_./-]+$ ]]; then
-  echo "DEPLOY_REMOTE_DIR contains unsupported characters." >&2
-  exit 2
-fi
-if [[ ! "$DEPLOY_BRANCH" =~ ^[A-Za-z0-9._/-]+$ ]]; then
-  echo "DEPLOY_BRANCH contains unsupported characters." >&2
-  exit 2
-fi
-if [[ ! "$HEALTH_TIMEOUT_SECONDS" =~ ^[1-9][0-9]*$ ]]; then
-  echo "DEPLOY_HEALTH_TIMEOUT_SECONDS must be a positive integer." >&2
-  exit 2
-fi
-if [[ "$CHECK_ONLY" != "0" && "$CHECK_ONLY" != "1" ]]; then
-  echo "DEPLOY_CHECK_ONLY must be 0 or 1." >&2
-  exit 2
-fi
-
-echo "Connecting to ${SSH_TARGET}..."
-
-ssh \
-  -o BatchMode=yes \
-  -o ConnectTimeout=15 \
-  "$SSH_TARGET" \
-  "bash -s -- $REMOTE_DIR $DEPLOY_BRANCH $HEALTH_TIMEOUT_SECONDS $CHECK_ONLY" <<'REMOTE_SCRIPT'
-set -Eeuo pipefail
-
-remote_dir="$1"
-deploy_branch="$2"
-health_timeout_seconds="$3"
-check_only="$4"
-
-if [[ "$remote_dir" == "__DEFAULT__" ]]; then
-  remote_dir="$HOME/ai-sales"
-fi
-
-cd "$remote_dir"
 
 compose() {
-  docker compose --profile app "$@"
+  docker compose -f "$INFRA_COMPOSE_FILE" "$@"
 }
 
 show_diagnostics() {
   local exit_code=$?
   trap - ERR
-  echo
-  echo "Deployment/readiness check failed (exit ${exit_code})." >&2
+  echo >&2
+  echo "Deployment failed (exit $exit_code). Current status:" >&2
+  docker info --format 'Docker: {{.ServerVersion}}' >&2 || true
   compose ps --all >&2 || true
-  compose logs --tail 100 postgres redis migrate storage-init worker app nginx >&2 || true
+  pm2 status >&2 || true
   exit "$exit_code"
 }
 trap show_diagnostics ERR
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
-    echo "Required command not found on remote host: $1" >&2
+    echo "Required command not found: $1" >&2
     return 1
   fi
 }
 
-container_id() {
-  compose ps --all -q "$1" | head -n 1
+check_docker() {
+  docker info >/dev/null
+  compose config --quiet
+  echo "[ready] Docker engine and Compose configuration"
 }
 
-wait_for_service() {
+wait_for_container_health() {
   local service="$1"
-  local expected="$2"
-  local deadline=$((SECONDS + health_timeout_seconds))
-  local id state health exit_code
+  local attempt container_id state health
 
-  while ((SECONDS < deadline)); do
-    id="$(container_id "$service")"
-    if [[ -n "$id" ]]; then
-      state="$(docker inspect --format '{{.State.Status}}' "$id")"
-      health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$id")"
-      exit_code="$(docker inspect --format '{{.State.ExitCode}}' "$id")"
-
-      case "$expected" in
-        healthy)
-          if [[ "$state" == "running" && "$health" == "healthy" ]]; then
-            echo "  [ready] $service is healthy"
-            return 0
-          fi
-          if [[ "$state" == "exited" || "$health" == "unhealthy" ]]; then
-            echo "$service failed: state=$state health=$health exit=$exit_code" >&2
-            return 1
-          fi
-          ;;
-        running)
-          if [[ "$state" == "running" ]]; then
-            echo "  [ready] $service is running"
-            return 0
-          fi
-          if [[ "$state" == "exited" ]]; then
-            echo "$service exited unexpectedly with code $exit_code" >&2
-            return 1
-          fi
-          ;;
-        completed)
-          if [[ "$state" == "exited" && "$exit_code" == "0" ]]; then
-            echo "  [ready] $service completed successfully"
-            return 0
-          fi
-          if [[ "$state" == "exited" && "$exit_code" != "0" ]]; then
-            echo "$service failed with exit code $exit_code" >&2
-            return 1
-          fi
-          ;;
-      esac
+  for ((attempt = 1; attempt <= HEALTH_RETRIES; attempt++)); do
+    container_id="$(compose ps -q "$service")"
+    if [[ -n "$container_id" ]]; then
+      state="$(docker inspect --format '{{.State.Status}}' "$container_id")"
+      health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$container_id")"
+      if [[ "$state" == "running" && "$health" == "healthy" ]]; then
+        echo "[ready] Docker service $service is healthy"
+        return 0
+      fi
+      if [[ "$state" == "exited" || "$health" == "unhealthy" ]]; then
+        echo "Docker service $service failed: state=$state health=$health" >&2
+        return 1
+      fi
     fi
-    sleep 3
+    sleep "$HEALTH_RETRY_DELAY"
   done
 
-  echo "Timed out waiting for $service to become $expected." >&2
+  echo "Timed out waiting for Docker service $service." >&2
   return 1
 }
 
-verify_postgres() {
-  compose exec -T postgres \
-    psql -v ON_ERROR_STOP=1 -U ai_dashboard -d ai_dashboard -tAc 'SELECT 1' \
-    | grep -qx '1'
-  echo "  [ready] PostgreSQL accepts queries"
+check_postgres() {
+  wait_for_container_health postgres
+  local result
+  result="$(compose exec -T postgres psql -v ON_ERROR_STOP=1 -U ai_sales -d ai_sales -tAc 'SELECT 1')"
+  if [[ "$result" != "1" ]]; then
+    echo "PostgreSQL query check returned an unexpected result: $result" >&2
+    return 1
+  fi
+  echo "[ready] PostgreSQL accepts queries"
 }
 
-verify_redis() {
+check_redis() {
+  wait_for_container_health redis
   compose exec -T redis sh -eu -c '
-    redis_password="$(tr "\000" "\n" </proc/1/cmdline | awk '\''found { print; exit } $0 == "--requirepass" { found=1 }'\'')"
-    test -n "$redis_password"
-    test "$(redis-cli --no-auth-warning -a "$redis_password" ping)" = "PONG"
+    response="$(redis-cli --no-auth-warning -a "$AI_SALES_REDIS_PASSWORD" ping)"
+    test "$response" = "PONG"
   '
-  echo "  [ready] Redis accepts authenticated commands"
+  echo "[ready] Redis responds to authenticated PING"
 }
 
-verify_worker() {
-  compose exec -T worker node dist-worker/apps/worker/health.js >/dev/null
-  echo "  [ready] Worker completed an end-to-end queue job"
+check_pm2_app() {
+  local app_name="$1"
+  pm2 jlist | node -e '
+    let input = "";
+    process.stdin.on("data", chunk => input += chunk);
+    process.stdin.on("end", () => {
+      const name = process.argv[1];
+      const app = JSON.parse(input).find(item => item.name === name);
+      if (!app || app.pm2_env.status !== "online") process.exit(1);
+    });
+  ' "$app_name"
+  echo "[ready] PM2 process $app_name is online"
 }
 
-verify_app() {
-  compose exec -T app node -e \
-    "fetch('http://127.0.0.1:8080/api/v1/health').then(async response => { if (!response.ok) { console.error(await response.text()); process.exit(1); } }).catch(error => { console.error(error.message); process.exit(1); })"
-  echo "  [ready] App health API reports database, Redis, and worker ready"
+check_worker() {
+  local attempt
+  check_pm2_app "$WORKER_APP_NAME"
+  for ((attempt = 1; attempt <= HEALTH_RETRIES; attempt++)); do
+    if node dist-worker/apps/worker/health.js >/dev/null 2>&1; then
+      echo "[ready] Worker completed its queue health check"
+      return 0
+    fi
+    sleep "$HEALTH_RETRY_DELAY"
+  done
+  echo "Worker queue health check failed." >&2
+  return 1
 }
 
-verify_nginx() {
-  compose exec -T nginx nginx -t >/dev/null
-  compose exec -T nginx wget -qO /dev/null http://127.0.0.1:8080/api/v1/health
-  echo "  [ready] Nginx configuration and reverse proxy are working"
+check_web() {
+  check_pm2_app "$WEB_APP_NAME"
+  curl --fail --silent --show-error \
+    --retry "$HEALTH_RETRIES" --retry-delay "$HEALTH_RETRY_DELAY" --retry-connrefused \
+    "$WEB_HEALTH_URL" >/dev/null
+  echo "[ready] Web application responds at $WEB_HEALTH_URL"
 }
 
 echo "Preflight checks"
-require_command docker
-require_command git
-docker info >/dev/null
-docker compose version
-test -f docker-compose.yml
+for command_name in curl docker flock git node npm npx pm2; do
+  require_command "$command_name"
+done
+test -f "$INFRA_COMPOSE_FILE"
 test -f .env
-compose config --quiet
-echo "  [ready] Docker engine and Compose configuration"
+test -f ecosystem.config.cjs
+check_docker
 
-if [[ "$check_only" == "0" ]]; then
-  if ! git diff --quiet || ! git diff --cached --quiet; then
-    echo "Remote repository has tracked changes; refusing to overwrite them." >&2
-    exit 1
-  fi
+echo "Starting Docker infrastructure"
+compose up -d postgres redis
+check_postgres
+check_redis
 
-  current_branch="$(git branch --show-current)"
-  if [[ "$current_branch" != "$deploy_branch" ]]; then
-    echo "Remote repository is on '$current_branch', expected '$deploy_branch'." >&2
-    exit 1
-  fi
+echo "Updating application"
+git pull --ff-only
+npm install
+npx prisma generate
+npx prisma migrate deploy
+npm run build
+mkdir -p .next/standalone/.next
+cp -a public .next/standalone/
+cp -a .next/static .next/standalone/.next/
+npm run worker:build
 
-  previous_revision="$(git rev-parse --short HEAD)"
-  echo "Updating $deploy_branch (current: $previous_revision)"
-  git fetch --prune origin "$deploy_branch"
-  git merge --ff-only "origin/$deploy_branch"
-  deployed_revision="$(git rev-parse --short HEAD)"
-  echo "Building revision $deployed_revision"
-  compose pull postgres redis storage-init nginx
-  compose build --pull migrate worker app
+echo "Restarting application processes"
+pm2 startOrReload ecosystem.config.cjs --update-env
+pm2 save
 
-  echo "Starting PostgreSQL and Redis"
-  compose up -d postgres redis
-  wait_for_service postgres healthy
-  wait_for_service redis healthy
-
-  echo "Applying database migrations"
-  compose run --rm migrate
-
-  echo "Preparing persistent storage"
-  compose up -d --force-recreate storage-init
-  wait_for_service storage-init completed
-
-  echo "Starting worker"
-  compose up -d worker
-  wait_for_service worker healthy
-
-  echo "Starting app and Nginx"
-  compose up -d app
-  wait_for_service app healthy
-  compose up -d --remove-orphans nginx
-  wait_for_service nginx running
-else
-  echo "Check-only mode: no Git or container changes will be made."
-  wait_for_service postgres healthy
-  wait_for_service redis healthy
-  wait_for_service worker healthy
-  wait_for_service app healthy
-  wait_for_service nginx running
-fi
-
-echo "End-to-end readiness checks"
-verify_postgres
-verify_redis
-verify_worker
-verify_app
-verify_nginx
+echo "Post-deployment status checks"
+check_docker
+check_postgres
+check_redis
+check_worker
+check_web
 
 echo
 compose ps
+pm2 status
 echo
-echo "AI-Sales is deployed and ready on $HOSTNAME at revision $(git rev-parse --short HEAD)."
-REMOTE_SCRIPT
+echo "AI-Sales deployment completed successfully at revision $(git rev-parse --short HEAD)."

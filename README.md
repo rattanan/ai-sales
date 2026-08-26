@@ -340,18 +340,22 @@ Build and run the full application profile:
 docker compose --profile app up --build
 ```
 
-Deploy to the SSH host alias `ntop` (remote repository defaults to
-`$HOME/ai-sales`) and verify PostgreSQL, Redis, migrations, storage, Worker,
-App, and Nginx readiness:
+`deploy.sh` runs **on the production host**, not from a workstation. It brings up
+PostgreSQL and Redis from `docker-compose.infrastructure.yml`, pulls, installs,
+migrates, builds the web and worker bundles, reloads both PM2 processes, and then
+re-checks every one of them:
 
 ```bash
+ssh ntop
+cd /opt/apps/ai-sales
 ./deploy.sh
-DEPLOY_CHECK_ONLY=1 ./deploy.sh # health checks without changing the deployment
 ```
 
-Set `DEPLOY_REMOTE_DIR`, `DEPLOY_SSH_TARGET`, or `DEPLOY_BRANCH` when the remote
-layout differs from the defaults. The remote repository must contain its
-production `.env` file; the script never copies or prints secrets.
+The host must already hold its own `.env`, `ecosystem.config.cjs`, and
+`docker-compose.infrastructure.yml`; none of the three is in this repository and
+the script neither copies nor prints secrets. `HEALTH_RETRIES` and
+`HEALTH_RETRY_DELAY` tune how long the readiness checks wait. See `DEPLOY.md`
+for the full runbook.
 
 The multi-stage image emits Next.js standalone output, listens on port `8080`, and runs as a non-root user. Apply migrations as a separate deployment job before routing production traffic. Supply all secrets through Secret Manager/environment configuration; do not bake real values into the image.
 
