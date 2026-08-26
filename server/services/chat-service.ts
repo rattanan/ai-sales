@@ -1211,12 +1211,14 @@ export async function sendKnowledgeChatMessage(
     userMessage: {
       id: userMessage.id,
       content: userMessage.content,
+      createdAt: userMessage.createdAt.toISOString(),
       attachments: attachmentSummaries.map(({ name }) => name),
     },
     assistantMessage: {
       id: assistant.id,
       role: "ASSISTANT" as const,
       content: assistant.content,
+      createdAt: assistant.createdAt.toISOString(),
       errorCode: assistant.errorCode,
       citations: assistant.citations.map((citation) => ({
         id: citation.id,

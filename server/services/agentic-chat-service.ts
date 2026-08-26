@@ -100,7 +100,7 @@ export type AgenticTurnInput = {
     } | null;
   };
   conversation: { id: string; title: string };
-  userMessage: { id: string; content: string };
+  userMessage: { id: string; content: string; createdAt: Date };
   requestId: string;
   scope: ChatScope;
   mode: ChatMode;
@@ -609,6 +609,7 @@ async function persistAgenticTurn(
     userMessage: {
       id: input.userMessage.id,
       content: input.userMessage.content,
+      createdAt: input.userMessage.createdAt.toISOString(),
       attachments: input.attachmentSummaries.map(({ name }) => name),
     },
     assistantMessage: {
@@ -617,6 +618,7 @@ async function persistAgenticTurn(
       id: assistant?.id ?? `unsaved-${crypto.randomUUID()}`,
       role: "ASSISTANT" as const,
       content: assistant?.content ?? loop.content,
+      createdAt: (assistant?.createdAt ?? new Date()).toISOString(),
       errorCode: assistant ? assistant.errorCode : "TURN_NOT_SAVED",
       citations: (assistant?.citations ?? []).map((citation) => ({
         id: citation.id,

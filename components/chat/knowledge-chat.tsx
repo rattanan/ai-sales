@@ -18,6 +18,10 @@ import { MessageFeedbackButtons } from "@/components/chat/message-feedback-butto
 import { CitationSources } from "@/components/chat/citation-sources";
 import { MarkdownMessage } from "@/components/chat/markdown-message";
 import { ChatArtifactList } from "@/components/chat/chat-artifacts";
+import {
+  ChatMessageActions,
+  ChatMessageEditor,
+} from "@/components/chat/chat-message-actions";
 import { readChatStream } from "@/lib/chat-stream";
 import { useComposerReveal } from "@/components/chat/use-composer-reveal";
 import { NtopActionCard } from "@/components/chat/ntop-action-card";
@@ -46,6 +50,7 @@ type ChatMessage = {
   id: string;
   role: "USER" | "ASSISTANT";
   content: string;
+  createdAt?: string;
   errorCode?: string | null;
   citations: Citation[];
   rating?: number | null;
@@ -56,7 +61,12 @@ type ChatMessage = {
 
 type ChatTurnResult = {
   conversation: { id: string };
-  userMessage: { id: string; content: string; attachments?: string[] };
+  userMessage: {
+    id: string;
+    content: string;
+    createdAt?: string;
+    attachments?: string[];
+  };
   assistantMessage: ChatMessage;
 };
 
@@ -97,6 +107,8 @@ export function KnowledgeChat({
   const [projectId, setProjectId] = useState("");
   const [webSearch, setWebSearch] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [relativeTimeNow, setRelativeTimeNow] = useState(() => Date.now());
+  const [editingMessageId, setEditingMessageId] = useState<string>();
   const optimisticSequence = useRef(0);
   const projectOptions = useMemo<Array<SelectMenuOption<string>>>(
     () => [
@@ -132,28 +144,47 @@ export function KnowledgeChat({
   } = useComposerReveal(input);
 
   useEffect(() => {
+    // transcriptPadding is a dependency because the floating composer's height
+    // is one: a growing draft would otherwise slide the last message under it.
     followLatest(logRef.current);
-  }, [messages, pending, streaming, followLatest]);
+  }, [messages, pending, streaming, transcriptPadding, followLatest]);
 
-  async function send(text = input) {
-    const filesToSend = attachedFiles;
+  useEffect(() => {
+    const interval = window.setInterval(
+      () => setRelativeTimeNow(Date.now()),
+      60_000,
+    );
+    return () => window.clearInterval(interval);
+  }, []);
+
+  async function send(
+    text = input,
+    options: { clearComposer?: boolean; files?: File[] } = {},
+  ) {
+    const clearComposer = options.clearComposer ?? true;
+    const filesToSend = options.files ?? attachedFiles;
     const message =
       text.trim() ||
       (filesToSend.length ? "Please summarize the attached file(s)." : "");
     if (!message || pending) return;
     setPending(true);
     setError(undefined);
-    setInput("");
-    setAttachedFiles([]);
+    if (clearComposer) {
+      setInput("");
+      setAttachedFiles([]);
+    }
+    setEditingMessageId(undefined);
     optimisticSequence.current += 1;
     const optimisticId = `pending-${optimisticSequence.current}`;
     const streamingId = `streaming-${optimisticSequence.current}`;
+    const submittedAt = new Date().toISOString();
     setMessages((current) => [
       ...current,
       {
         id: optimisticId,
         role: "USER",
         content: message,
+        createdAt: submittedAt,
         citations: [],
         attachments: filesToSend.map((file) => file.name),
       },
@@ -161,6 +192,7 @@ export function KnowledgeChat({
         id: streamingId,
         role: "ASSISTANT",
         content: "",
+        createdAt: submittedAt,
         citations: [],
         artifacts: [],
       },
@@ -210,12 +242,21 @@ export function KnowledgeChat({
         },
       });
       setConversationId(payload.conversation.id);
+      const completedAt = new Date().toISOString();
       setMessages((current) => [
         ...current.filter(
           ({ id }) => id !== optimisticId && id !== streamingId,
         ),
-        { ...payload.userMessage, role: "USER", citations: [] },
-        payload.assistantMessage,
+        {
+          ...payload.userMessage,
+          role: "USER",
+          citations: [],
+          createdAt: payload.userMessage.createdAt ?? submittedAt,
+        },
+        {
+          ...payload.assistantMessage,
+          createdAt: payload.assistantMessage.createdAt ?? completedAt,
+        },
       ]);
       if (!conversationId) {
         router.replace(
@@ -224,7 +265,7 @@ export function KnowledgeChat({
         router.refresh();
       }
     } catch (caught) {
-      setAttachedFiles(filesToSend);
+      if (clearComposer) setAttachedFiles(filesToSend);
       setMessages((current) =>
         current.filter(({ id }) => id !== optimisticId && id !== streamingId),
       );
@@ -379,7 +420,7 @@ export function KnowledgeChat({
               ? undefined
               : { paddingBottom: transcriptPadding }
           }
-          className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5 transition-[padding] duration-300 ease-out motion-reduce:transition-none sm:p-7"
+          className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5 transition-[padding] duration-500 ease-out motion-reduce:transition-none sm:p-7"
         >
           {!messages.length ? (
             <li className="mx-auto max-w-2xl rounded-2xl border border-indigo-100 bg-indigo-50/70 p-6 text-center">
@@ -398,118 +439,157 @@ export function KnowledgeChat({
               </div>
             </li>
           ) : null}
-          {messages.map((message) => (
-            <li
-              key={message.id}
-              className={
-                message.role === "USER"
-                  ? "ml-auto max-w-2xl"
-                  : "mr-auto max-w-3xl"
-              }
-            >
-              <article
-                className={
+          {messages.map((message) => {
+            const editing =
+              message.role === "USER" && editingMessageId === message.id;
+            return (
+              <li
+                key={message.id}
+                className={`group/message ${
                   message.role === "USER"
-                    ? "rounded-2xl rounded-br-sm bg-slate-900 px-4 py-3 text-sm leading-6 text-white"
-                    : "rounded-2xl rounded-bl-sm border bg-white px-5 py-4 text-sm leading-7 shadow-sm"
-                }
+                    ? "ml-auto max-w-2xl"
+                    : "mr-auto max-w-3xl"
+                }`}
               >
-                {message.role === "USER" ? (
-                  <p className="break-words whitespace-pre-wrap">
-                    {message.content}
-                  </p>
-                ) : (
-                  <MarkdownMessage
+                {editing ? (
+                  <ChatMessageEditor
                     content={message.content}
-                    citations={message.citations}
+                    disabled={pending}
+                    onCancel={() => setEditingMessageId(undefined)}
+                    onSubmit={(content) =>
+                      void send(content, { clearComposer: false, files: [] })
+                    }
                   />
-                )}
-                {message.role === "ASSISTANT" ? (
-                  <ChatArtifactList artifacts={message.artifacts} />
-                ) : null}
-                {message.id.startsWith("streaming-") ? (
-                  <span
-                    className="ml-0.5 inline-block animate-pulse text-indigo-600 motion-reduce:animate-none"
-                    aria-hidden="true"
+                ) : (
+                  <article
+                    className={
+                      message.role === "USER"
+                        ? "rounded-2xl rounded-br-sm bg-slate-900 px-4 py-3 text-sm leading-6 text-white"
+                        : "rounded-2xl rounded-bl-sm border bg-white px-5 py-4 text-sm leading-7 shadow-sm"
+                    }
                   >
-                    ▍
-                  </span>
-                ) : null}
-                <ChatMessageAttachments names={message.attachments} />
-                {message.citations.length ? (
-                  <CitationSources citations={message.citations} />
-                ) : null}
-              </article>
-              {message.suggestedAction ? (
-                <NtopActionCard action={message.suggestedAction} />
-              ) : null}
-              {message.role === "ASSISTANT" &&
-              !message.id.startsWith("streaming-") ? (
-                <div className="mt-2 flex flex-wrap items-start gap-1">
-                  <MessageFeedbackButtons
-                    messageId={message.id}
-                    initialRating={message.rating}
-                  />
-                  <details className="rounded-lg border bg-white px-3 py-2 text-xs">
-                    <summary className="min-h-7 cursor-pointer py-1 font-medium text-muted-foreground">
-                      Feedback details
-                    </summary>
-                    <form
-                      action={async (formData) => {
-                        await submitMessageFeedbackAction(formData);
-                      }}
-                      className="mt-3 grid gap-3 sm:grid-cols-2"
-                    >
-                      <input
-                        type="hidden"
-                        name="messageId"
-                        value={message.id}
+                    {message.role === "USER" ? (
+                      <p className="break-words whitespace-pre-wrap">
+                        {message.content}
+                      </p>
+                    ) : (
+                      <MarkdownMessage
+                        content={message.content}
+                        citations={message.citations}
                       />
-                      <label>
-                        <span className="mb-1 block">Rating</span>
-                        <select
-                          name="rating"
-                          defaultValue={message.rating ?? 1}
-                          className="min-h-11 w-full rounded-lg border px-3"
-                        >
-                          <option value="1">Helpful</option>
-                          <option value="-1">Not helpful</option>
-                        </select>
-                      </label>
-                      <label>
-                        <span className="mb-1 block">Reason</span>
-                        <select
-                          name="reason"
-                          className="min-h-11 w-full rounded-lg border px-3"
-                        >
-                          <option value="CORRECT">Correct</option>
-                          <option value="CLEAR">Clear</option>
-                          <option value="MISSING_INFORMATION">
-                            Missing information
-                          </option>
-                          <option value="INCORRECT">Incorrect</option>
-                          <option value="OUTDATED">Outdated</option>
-                          <option value="OTHER">Other</option>
-                        </select>
-                      </label>
-                      <label className="sm:col-span-2">
-                        <span className="mb-1 block">Optional comment</span>
-                        <textarea
-                          name="comment"
-                          rows={3}
-                          maxLength={1000}
-                          className="w-full rounded-lg border p-3"
+                    )}
+                    {message.role === "ASSISTANT" ? (
+                      <ChatArtifactList artifacts={message.artifacts} />
+                    ) : null}
+                    {message.id.startsWith("streaming-") ? (
+                      <span
+                        className="ml-0.5 inline-block animate-pulse text-indigo-600 motion-reduce:animate-none"
+                        aria-hidden="true"
+                      >
+                        ▍
+                      </span>
+                    ) : null}
+                    <ChatMessageAttachments names={message.attachments} />
+                    {message.citations.length ? (
+                      <CitationSources citations={message.citations} />
+                    ) : null}
+                  </article>
+                )}
+                {!editing ? (
+                  <ChatMessageActions
+                    content={message.content}
+                    createdAt={message.createdAt}
+                    now={relativeTimeNow}
+                    align={message.role === "USER" ? "end" : "start"}
+                    disabled={pending}
+                    allowCopy={message.role === "USER"}
+                    onRetry={
+                      message.role === "USER"
+                        ? () =>
+                            void send(message.content, {
+                              clearComposer: false,
+                              files: [],
+                            })
+                        : undefined
+                    }
+                    onEdit={
+                      message.role === "USER"
+                        ? () => setEditingMessageId(message.id)
+                        : undefined
+                    }
+                  />
+                ) : null}
+                {message.suggestedAction ? (
+                  <NtopActionCard action={message.suggestedAction} />
+                ) : null}
+                {message.role === "ASSISTANT" &&
+                !message.id.startsWith("streaming-") ? (
+                  <div className="mt-2 flex flex-wrap items-start gap-1">
+                    <MessageFeedbackButtons
+                      messageId={message.id}
+                      initialRating={message.rating}
+                    />
+                    <details className="rounded-lg border bg-white px-3 py-2 text-xs">
+                      <summary className="min-h-7 cursor-pointer py-1 font-medium text-muted-foreground">
+                        Feedback details
+                      </summary>
+                      <form
+                        action={async (formData) => {
+                          await submitMessageFeedbackAction(formData);
+                        }}
+                        className="mt-3 grid gap-3 sm:grid-cols-2"
+                      >
+                        <input
+                          type="hidden"
+                          name="messageId"
+                          value={message.id}
                         />
-                      </label>
-                      <button className="min-h-11 rounded-lg bg-primary px-4 font-medium text-primary-foreground sm:col-span-2">
-                        Save feedback
-                      </button>
-                    </form>
-                  </details>
-                </div>
-              ) : null}
-            </li>
-          ))}
+                        <label>
+                          <span className="mb-1 block">Rating</span>
+                          <select
+                            name="rating"
+                            defaultValue={message.rating ?? 1}
+                            className="min-h-11 w-full rounded-lg border px-3"
+                          >
+                            <option value="1">Helpful</option>
+                            <option value="-1">Not helpful</option>
+                          </select>
+                        </label>
+                        <label>
+                          <span className="mb-1 block">Reason</span>
+                          <select
+                            name="reason"
+                            className="min-h-11 w-full rounded-lg border px-3"
+                          >
+                            <option value="CORRECT">Correct</option>
+                            <option value="CLEAR">Clear</option>
+                            <option value="MISSING_INFORMATION">
+                              Missing information
+                            </option>
+                            <option value="INCORRECT">Incorrect</option>
+                            <option value="OUTDATED">Outdated</option>
+                            <option value="OTHER">Other</option>
+                          </select>
+                        </label>
+                        <label className="sm:col-span-2">
+                          <span className="mb-1 block">Optional comment</span>
+                          <textarea
+                            name="comment"
+                            rows={3}
+                            maxLength={1000}
+                            className="w-full rounded-lg border p-3"
+                          />
+                        </label>
+                        <button className="min-h-11 rounded-lg bg-primary px-4 font-medium text-primary-foreground sm:col-span-2">
+                          Save feedback
+                        </button>
+                      </form>
+                    </details>
+                  </div>
+                ) : null}
+              </li>
+            );
+          })}
           {pending ? (
             <li
               className="mr-auto rounded-2xl border bg-white px-5 py-3 text-sm text-muted-foreground"
@@ -524,15 +604,15 @@ export function KnowledgeChat({
         <div
           ref={composerRef}
           onFocusCapture={revealComposer}
-          className={`absolute inset-x-0 bottom-0 transition-transform duration-300 ease-out motion-reduce:transition-none ${composerHidden ? "translate-y-full" : "translate-y-0"}`}
+          className={`absolute inset-x-0 bottom-0 transition-transform duration-500 ease-out motion-reduce:transition-none ${composerHidden ? "translate-y-full" : "translate-y-0"}`}
         >
           {/* Replaces the divider: the transcript fades into the composer
               instead of being cut off from it. */}
           <div
             aria-hidden
-            className="pointer-events-none h-6 bg-gradient-to-b from-card/0 to-card"
+            className="pointer-events-none h-10 bg-gradient-to-b from-card/0 to-card"
           />
-          <div className="bg-card px-4 pb-4 sm:px-5 sm:pb-5">
+          <div className="bg-card px-4 pb-4 pt-1 sm:px-5 sm:pb-5">
             <p aria-live="assertive" className="mb-2 text-sm text-destructive">
               {error}
             </p>

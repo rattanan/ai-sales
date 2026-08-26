@@ -10,6 +10,10 @@ import { CitationSources } from "@/components/chat/citation-sources";
 import { MarkdownMessage } from "@/components/chat/markdown-message";
 import { ChatArtifactList } from "@/components/chat/chat-artifacts";
 import {
+  ChatMessageActions,
+  ChatMessageEditor,
+} from "@/components/chat/chat-message-actions";
+import {
   applyStepEvent,
   mergeTrace,
   messageTrace,
@@ -60,6 +64,7 @@ type Message = {
   id: string;
   role: "USER" | "ASSISTANT";
   content: string;
+  createdAt?: string;
   errorCode?: string | null;
   citations: Array<{
     id: string;
@@ -90,7 +95,12 @@ type ToolStep = {
 
 type ChatTurnResult = {
   conversation: { id: string };
-  userMessage: { id: string; content: string; attachments?: string[] };
+  userMessage: {
+    id: string;
+    content: string;
+    createdAt?: string;
+    attachments?: string[];
+  };
   assistantMessage: Message;
 };
 
@@ -257,6 +267,8 @@ export function UniversalChat({
   const [error, setError] = useState("");
   const [webSearch, setWebSearch] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [relativeTimeNow, setRelativeTimeNow] = useState(() => Date.now());
+  const [editingMessageId, setEditingMessageId] = useState<string>();
   const { t } = useWorkspaceLocale();
   const showBot = scope === "SPECIFIC_BOT";
   const showSources = scope === "SPECIFIC_SOURCES";
@@ -301,8 +313,18 @@ export function UniversalChat({
   }
 
   useEffect(() => {
+    // transcriptPadding is a dependency because the floating composer's height
+    // is one: a growing draft would otherwise slide the last message under it.
     followLatest(logRef.current);
-  }, [messages, liveTrace, pending, followLatest]);
+  }, [messages, liveTrace, pending, transcriptPadding, followLatest]);
+
+  useEffect(() => {
+    const interval = window.setInterval(
+      () => setRelativeTimeNow(Date.now()),
+      60_000,
+    );
+    return () => window.clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (!sourcePanelOpen) return;
@@ -327,6 +349,7 @@ export function UniversalChat({
     setError("");
     setWebSearch(false);
     setAttachedFiles([]);
+    setEditingMessageId(undefined);
     setLiveTrace([]);
     liveTraceRef.current = [];
     // Drop the conversation from the URL without a navigation, matching how a
@@ -334,10 +357,14 @@ export function UniversalChat({
     window.history.replaceState(null, "", "/workspace/chat");
   }
 
-  async function send() {
-    const filesToSend = attachedFiles;
+  async function send(
+    text = message,
+    options: { clearComposer?: boolean; files?: File[] } = {},
+  ) {
+    const clearComposer = options.clearComposer ?? true;
+    const filesToSend = options.files ?? attachedFiles;
     const content =
-      message.trim() ||
+      text.trim() ||
       (filesToSend.length ? "Please summarize the attached file(s)." : "");
     if (!content || pending) return;
     if (showBot && !botId) {
@@ -349,10 +376,12 @@ export function UniversalChat({
       setSourcePanelOpen(true);
       return;
     }
+    const submittedAt = new Date().toISOString();
     const optimistic: Message = {
       id: `pending-${Date.now()}`,
       role: "USER",
       content,
+      createdAt: submittedAt,
       citations: [],
       attachments: filesToSend.map((file) => file.name),
     };
@@ -364,12 +393,16 @@ export function UniversalChat({
         id: streamingId,
         role: "ASSISTANT",
         content: "",
+        createdAt: submittedAt,
         citations: [],
         artifacts: [],
       },
     ]);
-    setMessage("");
-    setAttachedFiles([]);
+    if (clearComposer) {
+      setMessage("");
+      setAttachedFiles([]);
+    }
+    setEditingMessageId(undefined);
     setPending(true);
     setError("");
     setLiveTrace([]);
@@ -444,8 +477,17 @@ export function UniversalChat({
         ...items.filter(
           (item) => item.id !== optimistic.id && item.id !== streamingId,
         ),
-        { ...userMessage, role: "USER", citations: [] },
-        { ...assistantMessage, trace: completedTrace },
+        {
+          ...userMessage,
+          role: "USER",
+          citations: [],
+          createdAt: userMessage.createdAt ?? submittedAt,
+        },
+        {
+          ...assistantMessage,
+          trace: completedTrace,
+          createdAt: assistantMessage.createdAt ?? new Date().toISOString(),
+        },
       ]);
       // The URL is updated without a router navigation on purpose. The chat
       // page is keyed by conversation id, so navigating here would remount
@@ -458,7 +500,7 @@ export function UniversalChat({
         `/workspace/chat?conversation=${encodeURIComponent(conversation.id)}`,
       );
     } catch (reason) {
-      setAttachedFiles(filesToSend);
+      if (clearComposer) setAttachedFiles(filesToSend);
       setError(
         reason instanceof Error
           ? reason.message
@@ -605,7 +647,7 @@ export function UniversalChat({
               ? undefined
               : { paddingBottom: transcriptPadding }
           }
-          className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-slate-50/60 p-4 transition-[padding] duration-300 ease-out motion-reduce:transition-none sm:p-6"
+          className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-slate-50/60 p-4 transition-[padding] duration-500 ease-out motion-reduce:transition-none sm:p-6"
         >
           {!messages.length ? (
             <div className="mx-auto mt-12 max-w-2xl">
@@ -653,10 +695,12 @@ export function UniversalChat({
           {messages.map((item) => {
             const trace = messageTrace(item, liveTrace);
             const streaming = item.id.startsWith("streaming-");
+            const editing =
+              item.role === "USER" && editingMessageId === item.id;
             return (
               <article
                 key={item.id}
-                className={`max-w-3xl ${item.role === "USER" ? "ml-auto" : "mr-auto"}`}
+                className={`group/message max-w-3xl ${item.role === "USER" ? "ml-auto" : "mr-auto"}`}
               >
                 {/* The trace comes first because it happened first: the turn
                   reads top to bottom as thinking, then acting, then answering,
@@ -673,30 +717,65 @@ export function UniversalChat({
                     หากรีเฟรชหน้าจะหายไป
                   </p>
                 ) : null}
-                <div
-                  className={`rounded-2xl px-4 py-3 text-sm leading-6 ${item.role === "USER" ? "bg-primary text-primary-foreground break-words whitespace-pre-wrap" : "mt-2 border bg-white"}`}
-                >
-                  {item.role === "USER" ? (
-                    item.content
-                  ) : (
-                    <MarkdownMessage
-                      content={item.content}
-                      citations={item.citations}
-                    />
-                  )}
-                  {item.role === "ASSISTANT" ? (
-                    <ChatArtifactList artifacts={item.artifacts} />
-                  ) : null}
-                  {streaming ? (
-                    <span
-                      className="ml-0.5 inline-block animate-pulse text-primary motion-reduce:animate-none"
-                      aria-hidden="true"
-                    >
-                      ▍
-                    </span>
-                  ) : null}
-                  <ChatMessageAttachments names={item.attachments} />
-                </div>
+                {editing ? (
+                  <ChatMessageEditor
+                    content={item.content}
+                    disabled={pending}
+                    onCancel={() => setEditingMessageId(undefined)}
+                    onSubmit={(content) =>
+                      void send(content, { clearComposer: false, files: [] })
+                    }
+                  />
+                ) : (
+                  <div
+                    className={`rounded-2xl px-4 py-3 text-sm leading-6 ${item.role === "USER" ? "bg-primary text-primary-foreground break-words whitespace-pre-wrap" : "mt-2 border bg-white"}`}
+                  >
+                    {item.role === "USER" ? (
+                      item.content
+                    ) : (
+                      <MarkdownMessage
+                        content={item.content}
+                        citations={item.citations}
+                      />
+                    )}
+                    {item.role === "ASSISTANT" ? (
+                      <ChatArtifactList artifacts={item.artifacts} />
+                    ) : null}
+                    {streaming ? (
+                      <span
+                        className="ml-0.5 inline-block animate-pulse text-primary motion-reduce:animate-none"
+                        aria-hidden="true"
+                      >
+                        ▍
+                      </span>
+                    ) : null}
+                    <ChatMessageAttachments names={item.attachments} />
+                  </div>
+                )}
+                {!editing ? (
+                  <ChatMessageActions
+                    content={item.content}
+                    createdAt={item.createdAt}
+                    now={relativeTimeNow}
+                    align={item.role === "USER" ? "end" : "start"}
+                    disabled={pending}
+                    allowCopy={item.role === "USER"}
+                    onRetry={
+                      item.role === "USER"
+                        ? () =>
+                            void send(item.content, {
+                              clearComposer: false,
+                              files: [],
+                            })
+                        : undefined
+                    }
+                    onEdit={
+                      item.role === "USER"
+                        ? () => setEditingMessageId(item.id)
+                        : undefined
+                    }
+                  />
+                ) : null}
                 {item.suggestedAction ? (
                   <NtopActionCard action={item.suggestedAction} />
                 ) : null}
@@ -740,15 +819,15 @@ export function UniversalChat({
         <div
           ref={composerBoxRef}
           onFocusCapture={revealComposer}
-          className={`absolute inset-x-0 bottom-0 transition-transform duration-300 ease-out motion-reduce:transition-none ${composerHidden ? "translate-y-full" : "translate-y-0"}`}
+          className={`absolute inset-x-0 bottom-0 transition-transform duration-500 ease-out motion-reduce:transition-none ${composerHidden ? "translate-y-full" : "translate-y-0"}`}
         >
           {/* Replaces the divider: the transcript fades into the composer
               instead of being cut off from it. */}
           <div
             aria-hidden
-            className="pointer-events-none h-6 bg-gradient-to-b from-card/0 to-card"
+            className="pointer-events-none h-10 bg-gradient-to-b from-card/0 to-card"
           />
-          <div className="bg-card px-4 pb-4">
+          <div className="bg-card px-4 pb-4 pt-1">
             <p role="alert" className="mb-2 text-sm text-destructive">
               {error}
             </p>

@@ -86,6 +86,100 @@ describe("universal chat navigation", () => {
     expect(document.activeElement).toBe(field);
   });
 
+  it("retries a user message without clearing the composer draft", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        `event: result\ndata: ${JSON.stringify({
+          conversation: { id: "conversation-1" },
+          userMessage: { id: "message-user-2", content: "Original question" },
+          assistantMessage: {
+            id: "message-assistant-2",
+            role: "ASSISTANT",
+            content: "Retried answer",
+            citations: [],
+          },
+        })}\n\n`,
+        { status: 200, headers: { "content-type": "text/event-stream" } },
+      ),
+    );
+    render(
+      <UniversalChat
+        bots={[]}
+        sources={[]}
+        conversations={[]}
+        selectedConversationId="conversation-1"
+        initialMessages={[
+          {
+            id: "message-user-1",
+            role: "USER",
+            content: "Original question",
+            createdAt: "2026-08-26T10:00:00.000Z",
+            citations: [],
+          },
+        ]}
+        historyQuery=""
+      />,
+    );
+    const composer = screen.getByPlaceholderText("Ask AI-Sales…");
+    fireEvent.change(composer, { target: { value: "Unsent draft" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry message" }));
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    const options = vi.mocked(fetch).mock.calls[0]?.[1];
+    expect(JSON.parse(options?.body as string)).toMatchObject({
+      message: "Original question",
+    });
+    expect((composer as HTMLTextAreaElement).value).toBe("Unsent draft");
+  });
+
+  it("edits and resends a user message inline", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        `event: result\ndata: ${JSON.stringify({
+          conversation: { id: "conversation-1" },
+          userMessage: { id: "message-user-2", content: "Corrected question" },
+          assistantMessage: {
+            id: "message-assistant-2",
+            role: "ASSISTANT",
+            content: "Corrected answer",
+            citations: [],
+          },
+        })}\n\n`,
+        { status: 200, headers: { "content-type": "text/event-stream" } },
+      ),
+    );
+    render(
+      <UniversalChat
+        bots={[]}
+        sources={[]}
+        conversations={[]}
+        selectedConversationId="conversation-1"
+        initialMessages={[
+          {
+            id: "message-user-1",
+            role: "USER",
+            content: "Original question",
+            createdAt: "2026-08-26T10:00:00.000Z",
+            citations: [],
+          },
+        ]}
+        historyQuery=""
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit message" }));
+    const editor = screen.getByRole("textbox", { name: "Edit message" });
+    fireEvent.change(editor, { target: { value: "Corrected question" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    const options = vi.mocked(fetch).mock.calls[0]?.[1];
+    expect(JSON.parse(options?.body as string)).toMatchObject({
+      message: "Corrected question",
+    });
+  });
+
   it("lays out the sales workflow as three ordered steps", () => {
     renderChat();
 

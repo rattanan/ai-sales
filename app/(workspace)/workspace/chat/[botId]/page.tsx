@@ -122,6 +122,7 @@ export default async function KnowledgeChatPage({
         id: message.id,
         role: message.role as "USER" | "ASSISTANT",
         content: message.content,
+        createdAt: message.createdAt.toISOString(),
         artifacts: storedChatArtifacts(message.artifacts),
         attachments: chatAttachmentNames(message.scopeConfig),
         errorCode: message.errorCode,
