@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { UniversalChat } from "@/components/chat/universal-chat";
 import { chatAttachmentNames } from "@/lib/chat-attachments";
 import { requireAuthorization } from "@/server/auth/authorization";
@@ -104,7 +104,7 @@ export default async function ChatIndexPage({
         },
       })
     : null;
-  if (query.conversation && !selected) notFound();
+  if (query.conversation && !selected) redirect("/workspace/chat");
   const candidateSources = await db.knowledgeSource.findMany({
     where: {
       rack: { organizationId: context.organizationId, active: true },

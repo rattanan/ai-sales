@@ -22,6 +22,14 @@ const thaiTranslations: Record<string, string> = {
   "Copy message": "คัดลอกข้อความนี้",
   "Message copied": "คัดลอกข้อความแล้ว",
   "Could not copy message": "คัดลอกข้อความไม่สำเร็จ",
+  "Delete conversation": "ลบบทสนทนา",
+  "Delete this conversation?": "ลบบทสนทนานี้หรือไม่",
+  "This conversation and its messages will be removed from your history. This action cannot be undone.":
+    "บทสนทนาและข้อความทั้งหมดจะถูกลบออกจากประวัติ และไม่สามารถย้อนกลับได้",
+  "Close delete confirmation": "ปิดหน้าต่างยืนยันการลบ",
+  "Could not delete the conversation. Try again.":
+    "ลบบทสนทนาไม่สำเร็จ โปรดลองอีกครั้ง",
+  "Deleting…": "กำลังลบ…",
   Cancel: "ยกเลิก",
   Send: "ส่ง",
   "View source": "ดูแหล่งอ้างอิง",

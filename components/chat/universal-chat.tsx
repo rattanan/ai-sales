@@ -45,6 +45,7 @@ import { rememberThinkLevel, type ThinkLevel } from "@/lib/chat-preferences";
 import { useWorkspaceLocale } from "@/components/layout/workspace-locale";
 import { useComposerReveal } from "@/components/chat/use-composer-reveal";
 import { MessageFeedbackButtons } from "@/components/chat/message-feedback-buttons";
+import { ConversationDeleteButton } from "@/components/chat/conversation-delete-button";
 import { readChatStream } from "@/lib/chat-stream";
 import { NtopActionCard } from "@/components/chat/ntop-action-card";
 import {
@@ -548,21 +549,36 @@ export function UniversalChat({
           aria-label="Conversations"
           className="mt-4 min-h-0 flex-1 space-y-1 overflow-y-auto"
         >
-          {conversations.map((conversation) => (
-            <Link
-              key={conversation.id}
-              href={`/workspace/chat?conversation=${conversation.id}`}
-              className={`block rounded-lg px-3 py-3 text-sm ${conversation.id === conversationId ? "bg-secondary text-secondary-foreground" : "hover:bg-muted"}`}
-            >
-              <span className="block truncate font-medium">
-                {conversation.title}
-              </span>
-              <span className="mt-1 block truncate text-xs text-muted-foreground">
-                {conversation.botName} ·{" "}
-                {new Date(conversation.lastMessageAt).toLocaleDateString()}
-              </span>
-            </Link>
-          ))}
+          {conversations.map((conversation) => {
+            const active = conversation.id === conversationId;
+            return (
+              <div
+                key={conversation.id}
+                className={`flex items-stretch rounded-lg ${active ? "bg-secondary text-secondary-foreground" : "hover:bg-muted"}`}
+              >
+                <Link
+                  href={`/workspace/chat?conversation=${conversation.id}`}
+                  aria-current={active ? "page" : undefined}
+                  className="min-w-0 flex-1 rounded-lg px-3 py-3 text-sm"
+                >
+                  <span className="block truncate font-medium">
+                    {conversation.title}
+                  </span>
+                  <span className="mt-1 block truncate text-xs text-muted-foreground">
+                    {conversation.botName} ·{" "}
+                    {new Date(
+                      conversation.lastMessageAt,
+                    ).toLocaleDateString()}
+                  </span>
+                </Link>
+                <ConversationDeleteButton
+                  conversationId={conversation.id}
+                  conversationTitle={conversation.title}
+                  onDeleted={active ? startNewChat : undefined}
+                />
+              </div>
+            );
+          })}
           {!conversations.length ? (
             <p className="px-3 py-5 text-sm text-muted-foreground">
               No universal conversations yet.

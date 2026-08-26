@@ -18,6 +18,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/features/chat/actions", () => ({
+  deleteConversationAction: vi.fn(),
   submitMessageFeedbackAction: vi.fn(),
 }));
 

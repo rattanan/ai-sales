@@ -14,6 +14,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn() }),
 }));
 vi.mock("@/features/chat/actions", () => ({
+  deleteConversationAction: vi.fn(),
   submitMessageFeedbackAction: vi.fn(),
 }));
 
