@@ -37,6 +37,7 @@ export function SelectMenu<Value extends string>({
   options,
   onChange,
   label,
+  caption,
   disabled = false,
   variant = "field",
   side = "bottom",
@@ -47,8 +48,14 @@ export function SelectMenu<Value extends string>({
   value: Value;
   options: Array<SelectMenuOption<Value>>;
   onChange: (value: Value) => void;
-  /** Accessible name. Render the visible caption yourself. */
+  /** Accessible name. Also the visible caption unless `caption` is given. */
   label: string;
+  /**
+   * Muted text before the value, for a trigger that has no label above it. The
+   * selected value alone is often not self-describing — "Auto" says nothing
+   * without "Mode" in front of it.
+   */
+  caption?: string;
   disabled?: boolean;
   /** `field` matches a form row; `pill` matches the chat composer toolbar. */
   variant?: "field" | "pill";
@@ -192,7 +199,14 @@ export function SelectMenu<Value extends string>({
         {Icon ? (
           <Icon size={16} className="shrink-0 text-muted-foreground" />
         ) : null}
-        <span className="min-w-0 flex-1 truncate">{selected?.label}</span>
+        <span className="min-w-0 flex-1 truncate">
+          {caption ? (
+            <span className="font-normal text-muted-foreground">
+              {caption}{" "}
+            </span>
+          ) : null}
+          {selected?.label}
+        </span>
         <ChevronDown
           size={15}
           aria-hidden="true"

@@ -121,4 +121,22 @@ describe("select menu", () => {
 
     expect(screen.queryByRole("listbox")).toBeNull();
   });
+
+  it("prefixes the value with a caption when the trigger has no label", () => {
+    render(
+      <SelectMenu
+        label="Mode"
+        caption="Mode"
+        value="auto"
+        options={OPTIONS}
+        onChange={vi.fn()}
+      />,
+    );
+
+    // "Auto" alone says nothing; the caption is what makes a label-less trigger
+    // in a toolbar row readable.
+    const trigger = screen.getByRole("combobox", { name: "Mode" });
+    expect(trigger.textContent).toContain("Mode");
+    expect(trigger.textContent).toContain("Auto");
+  });
 });

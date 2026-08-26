@@ -471,49 +471,49 @@ export function UniversalChat({
             <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
               ACL enforced
             </span>
-            {conversationId ? (
-              <a
-                href={`/api/universal-chat/export?conversation=${conversationId}`}
-                className="ml-auto inline-flex min-h-11 items-center gap-2 rounded-lg border px-3 text-sm font-medium"
-              >
-                <Download size={16} /> Export
-              </a>
-            ) : null}
-          </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            <div className="text-sm">
-              <span className="mb-1 block font-medium">Scope</span>
+            <div className="ml-auto flex flex-wrap items-center gap-2">
               <SelectMenu
                 label="Scope"
+                caption="Scope"
                 value={scope}
                 options={SCOPE_OPTIONS}
+                variant="pill"
+                align="end"
                 onChange={(nextScope) => {
                   setScope(nextScope);
                   if (nextScope === "SPECIFIC_SOURCES")
                     setSourcePanelOpen(true);
                 }}
               />
-            </div>
-            <div className="text-sm">
-              <span className="mb-1 block font-medium">Mode</span>
               <SelectMenu
                 label="Mode"
+                caption="Mode"
                 value={mode}
                 options={MODE_OPTIONS}
+                variant="pill"
+                align="end"
                 onChange={setMode}
               />
-            </div>
-            {showBot ? (
-              <div className="text-sm md:col-span-2">
-                <span className="mb-1 block font-medium">Bot</span>
+              {showBot ? (
                 <SelectMenu
                   label="Bot"
+                  caption="Bot"
                   value={botId}
                   options={botOptions}
+                  variant="pill"
+                  align="end"
                   onChange={setBotId}
                 />
-              </div>
-            ) : null}
+              ) : null}
+              {conversationId ? (
+                <a
+                  href={`/api/universal-chat/export?conversation=${conversationId}`}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-semibold"
+                >
+                  <Download size={16} /> Export
+                </a>
+              ) : null}
+            </div>
           </div>
           {showSources ? (
             <p className="mt-3 flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
