@@ -128,6 +128,37 @@ describe("agent tool masking", () => {
     expect(executed.trace.maskedInput.query).toBe("โทร[MASKED_PHONE]");
   });
 
+  it("omits display payloads entirely from the persisted trace", async () => {
+    const tool = defineAgentTool({
+      name: "display_qr",
+      kind: "SYSTEM",
+      access: "READ",
+      group: "DISPLAY",
+      description: "แสดง QR",
+      traceRedacted: true,
+      parameters: z.object({ data: z.string() }),
+      execute: async () => toolSuccess("displayed"),
+    });
+
+    const executed = await executeToolCall({
+      context: contextWith({
+        maskSensitiveData: true,
+        allowSensitiveAiAccess: true,
+      }),
+      catalog: new Map([[tool.name, tool]]),
+      call: {
+        id: "call-display",
+        name: tool.name,
+        arguments: { data: "000201-secret-payment-payload" },
+      },
+      stepIndex: 0,
+      evidenceOffset: 0,
+    });
+
+    expect(executed.trace.maskedInput).toEqual({});
+    expect(JSON.stringify(executed.trace)).not.toContain("secret-payment");
+  });
+
   it("keeps stripping injected instructions whatever the policy says", async () => {
     const tool = defineAgentTool({
       name: "ntop_get",

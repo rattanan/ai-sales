@@ -5,6 +5,7 @@ import { requireAuthorization } from "@/server/auth/authorization";
 import { requireBotUse } from "@/server/auth/knowledge-access";
 import { db } from "@/server/db";
 import { env } from "@/schemas/env";
+import { storedChatArtifacts } from "@/server/services/chat-artifact-service";
 
 function stringQuestions(value: unknown) {
   return Array.isArray(value)
@@ -90,6 +91,7 @@ export default async function KnowledgeChatPage({
             where: { role: { in: ["USER", "ASSISTANT"] } },
             include: {
               citations: { orderBy: { rank: "asc" } },
+              artifacts: { orderBy: { position: "asc" } },
               feedback: true,
               ntopActions: { orderBy: { createdAt: "desc" }, take: 1 },
             },
@@ -120,6 +122,7 @@ export default async function KnowledgeChatPage({
         id: message.id,
         role: message.role as "USER" | "ASSISTANT",
         content: message.content,
+        artifacts: storedChatArtifacts(message.artifacts),
         attachments: chatAttachmentNames(message.scopeConfig),
         errorCode: message.errorCode,
         rating: message.feedback?.rating,

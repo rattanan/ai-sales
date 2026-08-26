@@ -35,8 +35,8 @@ export const botConfigurationSchema = z.object({
   databaseToolsEnabled: z.preprocess((value) => value === "on", z.boolean()),
   agenticEnabled: z.preprocess((value) => value === "on", z.boolean()),
   maxToolSteps: z.coerce.number().int().min(1).max(12).default(6),
-  // Tools are opt-out: the form posts only the names switched off, so a tool
-  // added later is enabled for existing bots instead of silently disabled.
+  // The UI posts only disabled names. An absent field therefore means the
+  // administrator intentionally left every tool enabled.
   disabledTools: z
     .union([z.string(), z.array(z.string())])
     .optional()

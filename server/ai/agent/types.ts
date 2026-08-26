@@ -3,6 +3,7 @@ import type { AuthorizationContext } from "@/server/auth/authorization";
 import type { RetrievedKnowledge } from "@/server/services/retrieval-service";
 import type { NtopActionDraft } from "@/server/services/ntop-chat-orchestrator";
 import type { getEffectiveAiPrivacyPolicy } from "@/server/services/privacy-policy";
+import type { ChatChartArtifact, ChatQrArtifact } from "@/types/chat-artifact";
 
 /**
  * Evidence a tool grounded its result in. Live tool output and chat
@@ -45,7 +46,20 @@ export type AgentToolGroup =
   | "API"
   | "NTOP"
   | "WEB"
+  | "DISPLAY"
   | "PLATFORM";
+
+export type GeneratedImageArtifact = {
+  id: string;
+  kind: "image";
+  mediaBytes: Uint8Array;
+  mediaType: "image/jpeg" | "image/png" | "image/webp";
+  alt: string;
+  caption?: string;
+};
+
+export type GeneratedChatArtifact =
+  ChatQrArtifact | ChatChartArtifact | GeneratedImageArtifact;
 
 export type AgentToolCitation = {
   kind: "DATABASE_QUERY" | "LEGACY_API";
@@ -66,6 +80,8 @@ export type AgentToolResult = {
   citation?: AgentToolCitation;
   /** WRITE tools never execute. They return a draft the user confirms in the UI. */
   proposal?: NtopActionDraft;
+  /** Visuals rendered beside the answer; never copied into the model prompt. */
+  artifacts?: GeneratedChatArtifact[];
   isError: boolean;
   errorCode?: string;
 };
@@ -93,6 +109,13 @@ export type AgentRunContext = {
   privacyPolicy: Awaited<ReturnType<typeof getEffectiveAiPrivacyPolicy>>;
   /** Universal chat reaches every workspace data source; a bot reaches only GLOBAL-scoped ones. */
   isUniversal: boolean;
+  /**
+   * Bounded text the model has actually seen this turn. Display tools use it
+   * to reject invented URLs, QR payloads and chart values.
+   */
+  displayGroundingText?: string;
+  /** Hard per-turn quota shared by all display system tools. */
+  displayArtifactCount?: number;
 };
 
 export type AgentToolDefinition = {
@@ -121,6 +144,8 @@ export type AgentToolDefinition = {
    * request number reads as a phone number to a digit-run regex.
    */
   selfMasked?: boolean;
+  /** Arguments are intentionally absent from the persisted trace. */
+  traceRedacted?: boolean;
   parameters: z.ZodType;
   authorize(context: AgentRunContext, args: unknown): Promise<boolean>;
   execute(context: AgentRunContext, args: unknown): Promise<AgentToolResult>;
@@ -138,6 +163,7 @@ export function defineAgentTool<Schema extends z.ZodType>(definition: {
   description: string;
   codeDefinedName?: boolean;
   selfMasked?: boolean;
+  traceRedacted?: boolean;
   parameters: Schema;
   authorize?(context: AgentRunContext, args: z.infer<Schema>): Promise<boolean>;
   execute(
@@ -166,7 +192,7 @@ export function toolFailure(
 export function toolSuccess(
   content: string,
   evidence: GroundingEvidence[] = [],
-  extra: Pick<AgentToolResult, "citation" | "proposal"> = {},
+  extra: Pick<AgentToolResult, "citation" | "proposal" | "artifacts"> = {},
 ): AgentToolResult {
   return { content, evidence, isError: false, ...extra };
 }

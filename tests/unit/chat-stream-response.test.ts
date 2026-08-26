@@ -7,8 +7,21 @@ vi.mock("@/server/services/logger", () => ({
 }));
 
 import { chatStreamResponse } from "@/server/http/chat-stream-response";
+import { success } from "@/types/result";
 
 describe("chatStreamResponse", () => {
+  it("emits visual artifacts as typed SSE events", async () => {
+    const response = chatStreamResponse(async (_token, _step, artifact) => {
+      artifact({ id: "qr-1", kind: "qr", svg: "<svg/>" });
+      return success({ id: "message-1" });
+    });
+
+    const body = await response.text();
+
+    expect(body).toContain("event: artifact");
+    expect(body).toContain('data: {"id":"qr-1","kind":"qr","svg":"<svg/>"}');
+  });
+
   it("logs safe diagnostics when the chat operation throws", async () => {
     const error = Object.assign(new Error("private provider response"), {
       code: "P2002",
@@ -29,8 +42,6 @@ describe("chatStreamResponse", () => {
         errorCode: "P2002",
       }),
     );
-    expect(mocks.loggerError.mock.calls[0]?.[1]).not.toHaveProperty(
-      "message",
-    );
+    expect(mocks.loggerError.mock.calls[0]?.[1]).not.toHaveProperty("message");
   });
 });

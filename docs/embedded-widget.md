@@ -1,5 +1,10 @@
 # InsightKM embedded authentication and widget
 
+Assistant messages can include governed QR, chart, and image artifacts. The
+iframe renders QR/chart SVGs as images and fetches stored image bytes with the
+widget's scoped bearer token; host pages never receive the token or upstream
+image URL. See [Chat display artifacts](./chat-display-artifacts.md).
+
 ## Trust boundary
 
 The host application authenticates its own user, creates the identity payload on its server, and signs the complete payload. The signing secret stays server-side. InsightKM accepts `role` and `department` only from a valid signature and maps both claims to active tenant records; unknown claims are denied.

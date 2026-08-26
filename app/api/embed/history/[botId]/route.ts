@@ -4,6 +4,7 @@ import {
   EmbeddedAuthenticationError,
 } from "@/server/auth/embedded-auth";
 import { db } from "@/server/db";
+import { storedChatArtifacts } from "@/server/services/chat-artifact-service";
 
 export async function GET(
   request: Request,
@@ -24,7 +25,10 @@ export async function GET(
       where: { conversationId: externalSession.conversationId },
       orderBy: { createdAt: "asc" },
       take: 100,
-      include: { citations: { orderBy: { rank: "asc" } } },
+      include: {
+        citations: { orderBy: { rank: "asc" } },
+        artifacts: { orderBy: { position: "asc" } },
+      },
     });
     return Response.json(
       {
@@ -34,6 +38,7 @@ export async function GET(
           role: message.role,
           content: message.content,
           createdAt: message.createdAt,
+          artifacts: storedChatArtifacts(message.artifacts),
           citations: message.citations.map((citation) => ({
             rank: citation.rank,
             quote: citation.quote,

@@ -17,6 +17,7 @@ import { SelectMenu, type SelectMenuOption } from "@/components/ui/select-menu";
 import { MessageFeedbackButtons } from "@/components/chat/message-feedback-buttons";
 import { CitationSources } from "@/components/chat/citation-sources";
 import { MarkdownMessage } from "@/components/chat/markdown-message";
+import { ChatArtifactList } from "@/components/chat/chat-artifacts";
 import { readChatStream } from "@/lib/chat-stream";
 import { NtopActionCard } from "@/components/chat/ntop-action-card";
 import {
@@ -25,6 +26,7 @@ import {
   ChatSelectedAttachments,
 } from "@/components/chat/chat-attachment-picker";
 import type { NtopSuggestedAction } from "@/schemas/ntop";
+import type { ChatArtifact } from "@/types/chat-artifact";
 import {
   deleteConversationAction,
   renameConversationAction,
@@ -48,6 +50,7 @@ type ChatMessage = {
   rating?: number | null;
   suggestedAction?: NtopSuggestedAction;
   attachments?: string[];
+  artifacts?: ChatArtifact[];
 };
 
 type ChatTurnResult = {
@@ -134,7 +137,13 @@ export function KnowledgeChat({
         citations: [],
         attachments: filesToSend.map((file) => file.name),
       },
-      { id: streamingId, role: "ASSISTANT", content: "", citations: [] },
+      {
+        id: streamingId,
+        role: "ASSISTANT",
+        content: "",
+        citations: [],
+        artifacts: [],
+      },
     ]);
     try {
       const requestPayload = {
@@ -157,6 +166,18 @@ export function KnowledgeChat({
             }),
       });
       const payload = await readChatStream<ChatTurnResult>(response, {
+        onArtifact(artifact) {
+          setMessages((current) =>
+            current.map((item) =>
+              item.id === streamingId
+                ? {
+                    ...item,
+                    artifacts: [...(item.artifacts ?? []), artifact],
+                  }
+                : item,
+            ),
+          );
+        },
         onToken(token) {
           setStreaming(true);
           setMessages((current) =>
@@ -374,6 +395,9 @@ export function KnowledgeChat({
                     citations={message.citations}
                   />
                 )}
+                {message.role === "ASSISTANT" ? (
+                  <ChatArtifactList artifacts={message.artifacts} />
+                ) : null}
                 {message.id.startsWith("streaming-") ? (
                   <span
                     className="ml-0.5 inline-block animate-pulse text-indigo-600 motion-reduce:animate-none"

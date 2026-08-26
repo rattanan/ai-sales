@@ -35,13 +35,14 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   try {
-    return chatStreamResponse((onToken, onStepEvent) =>
+    return chatStreamResponse((onToken, onStepEvent, onArtifact) =>
       sendKnowledgeChatMessage(context, {
         ...parsed.data,
         attachments: chatRequest.attachments,
         authMode: context.authMode ?? "LOCAL",
         onToken,
         onStepEvent,
+        onArtifact,
       }),
     );
   } catch (error) {

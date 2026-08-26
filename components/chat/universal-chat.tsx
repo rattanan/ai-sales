@@ -8,6 +8,7 @@ import {
 } from "@/components/chat/agent-trace";
 import { CitationSources } from "@/components/chat/citation-sources";
 import { MarkdownMessage } from "@/components/chat/markdown-message";
+import { ChatArtifactList } from "@/components/chat/chat-artifacts";
 import {
   applyStepEvent,
   mergeTrace,
@@ -46,6 +47,7 @@ import {
   ChatSelectedAttachments,
 } from "@/components/chat/chat-attachment-picker";
 import type { NtopSuggestedAction } from "@/schemas/ntop";
+import type { ChatArtifact } from "@/types/chat-artifact";
 import {
   ChatSourcePanel,
   selectedChatSourceScope,
@@ -70,6 +72,7 @@ type Message = {
   rating?: number | null;
   suggestedAction?: NtopSuggestedAction;
   attachments?: string[];
+  artifacts?: ChatArtifact[];
 };
 
 type ToolStep = {
@@ -278,7 +281,13 @@ export function UniversalChat({
     setMessages((items) => [
       ...items,
       optimistic,
-      { id: streamingId, role: "ASSISTANT", content: "", citations: [] },
+      {
+        id: streamingId,
+        role: "ASSISTANT",
+        content: "",
+        citations: [],
+        artifacts: [],
+      },
     ]);
     setMessage("");
     setAttachedFiles([]);
@@ -311,6 +320,18 @@ export function UniversalChat({
             }),
       });
       const payload = await readChatStream<ChatTurnResult>(response, {
+        onArtifact(artifact) {
+          setMessages((items) =>
+            items.map((item) =>
+              item.id === streamingId
+                ? {
+                    ...item,
+                    artifacts: [...(item.artifacts ?? []), artifact],
+                  }
+                : item,
+            ),
+          );
+        },
         onStepEvent(event) {
           // The ref is the source of truth and is advanced synchronously:
           // a state updater function runs during React's render phase, not at
@@ -568,6 +589,9 @@ export function UniversalChat({
                       citations={item.citations}
                     />
                   )}
+                  {item.role === "ASSISTANT" ? (
+                    <ChatArtifactList artifacts={item.artifacts} />
+                  ) : null}
                   {streaming ? (
                     <span
                       className="ml-0.5 inline-block animate-pulse text-primary motion-reduce:animate-none"

@@ -27,6 +27,7 @@ export function chatStreamResponse<T>(
   operation: (
     emitToken: TokenEmitter,
     emitStepEvent: ChatStreamEventEmitter,
+    emitArtifact: ChatStreamEventEmitter,
   ) => Promise<AppResult<T>>,
 ) {
   const encoder = new TextEncoder();
@@ -48,6 +49,7 @@ export function chatStreamResponse<T>(
           const result = await operation(
             (token) => emit("token", token),
             (event) => emit("step", event),
+            (artifact) => emit("artifact", artifact),
           );
           if (result.ok) emit("result", result.data);
           else

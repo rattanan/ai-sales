@@ -9,6 +9,7 @@ import { db } from "@/server/db";
 import { authorizeResource } from "@/server/auth/resource-authorization";
 import { env } from "@/schemas/env";
 import { isThinkLevel, THINK_LEVEL_COOKIE } from "@/lib/chat-preferences";
+import { storedChatArtifacts } from "@/server/services/chat-artifact-service";
 
 /**
  * Traces predating the agent loop stored no tool name, so the tool group is
@@ -90,6 +91,7 @@ export default async function ChatIndexPage({
             where: { role: { in: ["USER", "ASSISTANT"] } },
             include: {
               citations: { orderBy: { rank: "asc" } },
+              artifacts: { orderBy: { position: "asc" } },
               toolTraces: {
                 orderBy: [{ stepIndex: "asc" }, { createdAt: "asc" }],
               },
@@ -168,6 +170,7 @@ export default async function ChatIndexPage({
         id: message.id,
         role: message.role as "USER" | "ASSISTANT",
         content: message.content,
+        artifacts: storedChatArtifacts(message.artifacts),
         attachments: chatAttachmentNames(message.scopeConfig),
         errorCode: message.errorCode,
         citations: message.citations.map((citation) => ({

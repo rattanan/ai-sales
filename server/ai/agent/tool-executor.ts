@@ -196,7 +196,9 @@ export async function executeToolCall(input: {
       toolType: definition.group,
       toolId: result.citation?.id,
       status: result.isError ? "FAILED" : "COMPLETED",
-      maskedInput: maskedArguments(parsed.data, context),
+      maskedInput: definition.traceRedacted
+        ? {}
+        : maskedArguments(parsed.data, context),
       maskedOutput: {
         summary: truncate(summary, MAX_STORED_TOOL_RESULT),
         evidenceCount: evidence.length,

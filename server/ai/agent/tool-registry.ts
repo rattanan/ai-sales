@@ -21,6 +21,7 @@ import {
 } from "@/server/ai/agent/system-tools/database";
 import { webSearch } from "@/server/ai/agent/system-tools/web";
 import { getCurrentDatetime } from "@/server/ai/agent/system-tools/datetime";
+import { DISPLAY_SYSTEM_TOOLS } from "@/server/ai/agent/system-tools/display";
 
 /**
  * Tools compiled into the platform. Unlike the dynamic tools they are not
@@ -34,6 +35,7 @@ export const SYSTEM_TOOLS: AgentToolDefinition[] = [
   listDataSources,
   queryDatabase,
   webSearch,
+  ...DISPLAY_SYSTEM_TOOLS,
   getCurrentDatetime,
 ];
 
@@ -174,6 +176,7 @@ export function buildToolCatalog(
 ): Map<string, AgentToolDefinition> {
   const allowedGroups = new Set<AgentToolGroup>([
     ...SCOPE_GROUPS[options.scope],
+    "DISPLAY",
     "PLATFORM",
   ]);
   if (!options.databaseToolsEnabled) allowedGroups.delete("DATABASE");

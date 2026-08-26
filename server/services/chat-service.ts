@@ -48,6 +48,7 @@ import {
   agenticToolCallingAvailable,
   completeAgenticTurn,
 } from "@/server/services/agentic-chat-service";
+import type { ChatArtifact } from "@/types/chat-artifact";
 
 function isThai(value: string) {
   return /[\u0E00-\u0E7F]/.test(value);
@@ -582,6 +583,7 @@ export async function sendKnowledgeChatMessage(
     isUniversal?: boolean;
     onToken?: (token: string) => void | Promise<void>;
     onStepEvent?: (event: AgentStepEvent) => void;
+    onArtifact?: (artifact: ChatArtifact) => void;
   },
 ) {
   await requireBotUse(context, input.botId);
@@ -751,6 +753,7 @@ export async function sendKnowledgeChatMessage(
       startedAt: performance.now(),
       onToken: input.onToken,
       onStepEvent: input.onStepEvent,
+      onArtifact: input.onArtifact,
     });
   }
   const explicitNtopLookup = hasExplicitNtopLookup(input.message);
@@ -1325,6 +1328,7 @@ export async function sendUniversalChatMessage(
     attachments?: ParsedChatAttachment[];
     onToken?: (token: string) => void | Promise<void>;
     onStepEvent?: (event: AgentStepEvent) => void;
+    onArtifact?: (artifact: ChatArtifact) => void;
   },
 ) {
   const existingConversation = input.conversationId
@@ -1385,5 +1389,6 @@ export async function sendUniversalChatMessage(
     authMode: context.authMode ?? "LOCAL",
     onToken: input.onToken,
     onStepEvent: input.onStepEvent,
+    onArtifact: input.onArtifact,
   });
 }

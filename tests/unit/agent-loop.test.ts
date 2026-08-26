@@ -506,6 +506,48 @@ describe("runAgentLoop", () => {
     expect(events[1]).toMatchObject({ isError: false, summary: "พบ: q" });
   });
 
+  it("redacts display arguments from the live step stream", async () => {
+    const events: AgentStepEvent[] = [];
+    const display = defineAgentTool({
+      name: "display_qr",
+      kind: "SYSTEM",
+      access: "READ",
+      group: "DISPLAY",
+      description: "แสดง QR",
+      traceRedacted: true,
+      parameters: z.object({ data: z.string() }),
+      execute: async () => toolSuccess("แสดงแล้ว"),
+    });
+    const { provider } = scriptedProvider([
+      answer({
+        toolCalls: [
+          toolCall("display_qr", { data: "000201-secret-payment-payload" }),
+        ],
+      }),
+      answer({ content: "จบ" }),
+    ]);
+
+    await runAgentLoop({
+      context,
+      catalog: catalogOf(display),
+      messages,
+      maxSteps: 6,
+      deadline: performance.now() + 60_000,
+      callProvider: provider,
+      onToken: vi.fn(),
+      onStepEvent: (event) => {
+        events.push(event);
+      },
+    });
+
+    expect(events[0]).toMatchObject({
+      kind: "tool_start",
+      toolName: "display_qr",
+      arguments: {},
+    });
+    expect(JSON.stringify(events)).not.toContain("secret-payment");
+  });
+
   it("skips further tool steps once the wall clock budget is gone", async () => {
     const { provider, calls } = scriptedProvider([
       answer({ content: "ตอบทันทีโดยไม่ใช้เครื่องมือ" }),

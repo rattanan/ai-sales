@@ -38,12 +38,13 @@ export async function POST(request: Request) {
       { status: 422 },
     );
   try {
-    return chatStreamResponse((onToken, onStepEvent) =>
+    return chatStreamResponse((onToken, onStepEvent, onArtifact) =>
       sendUniversalChatMessage(context, {
         ...parsed.data,
         attachments: chatRequest.attachments,
         onToken,
         onStepEvent,
+        onArtifact,
       }),
     );
   } catch {

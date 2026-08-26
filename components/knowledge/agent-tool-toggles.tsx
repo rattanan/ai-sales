@@ -2,17 +2,21 @@
 
 import { useState } from "react";
 import {
+  BarChart3,
   CheckCircle2,
   Clock,
   Database,
   FileSearch,
   Globe2,
+  ImageIcon,
   MessageSquare,
   MinusCircle,
+  QrCode,
   Table2,
 } from "lucide-react";
 import {
   AGENT_TOOL_CATALOG,
+  DEFAULT_DISABLED_AGENT_TOOLS,
   AGENT_TOOL_GROUP_LABEL,
   AGENT_TOOL_GROUP_ORDER,
   type AgentToolGroupKey,
@@ -20,7 +24,11 @@ import {
 
 const GROUP_ICON: Record<
   AgentToolGroupKey,
-  React.ComponentType<{ size?: number; className?: string }>
+  React.ComponentType<{
+    size?: number;
+    className?: string;
+    "aria-hidden"?: boolean;
+  }>
 > = {
   DOCUMENT: FileSearch,
   HISTORY: MessageSquare,
@@ -28,19 +36,36 @@ const GROUP_ICON: Record<
   DATABASE: Database,
   WEB: Globe2,
   PLATFORM: Clock,
+  DISPLAY: ImageIcon,
+};
+
+const TOOL_ICON: Partial<
+  Record<
+    string,
+    React.ComponentType<{
+      size?: number;
+      className?: string;
+      "aria-hidden"?: boolean;
+    }>
+  >
+> = {
+  display_qr: QrCode,
+  display_chart: BarChart3,
+  display_image: ImageIcon,
 };
 
 /**
- * Per-tool switches for one bot. The form posts the names that are OFF, so a
- * tool added to the platform later is enabled by default rather than silently
- * disabled for every existing bot.
+ * Per-tool switches for one bot. Most tools are opt-out; the display group is
+ * opt-in because it persists visible chat media.
  */
 export function AgentToolToggles({
-  disabledTools = [],
+  disabledTools,
 }: {
   disabledTools?: string[];
 }) {
-  const [disabled, setDisabled] = useState(new Set(disabledTools));
+  const [disabled, setDisabled] = useState(
+    new Set(disabledTools ?? DEFAULT_DISABLED_AGENT_TOOLS),
+  );
   const enabledCount = AGENT_TOOL_CATALOG.length - disabled.size;
 
   function toggle(name: string) {
@@ -82,6 +107,7 @@ export function AgentToolToggles({
               <ul className="mt-2 space-y-2">
                 {tools.map((tool) => {
                   const off = disabled.has(tool.name);
+                  const ToolIcon = TOOL_ICON[tool.name] ?? Icon;
                   return (
                     <li key={tool.name}>
                       <button
@@ -93,7 +119,7 @@ export function AgentToolToggles({
                         <span
                           className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${off ? "bg-muted text-muted-foreground" : "bg-secondary text-secondary-foreground"}`}
                         >
-                          <Icon size={18} />
+                          <ToolIcon size={18} aria-hidden={true} />
                         </span>
                         <span className="min-w-0 flex-1">
                           <span

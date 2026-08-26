@@ -1,4 +1,5 @@
 import { readJsonResponse } from "@/lib/http-response";
+import type { ChatArtifact } from "@/types/chat-artifact";
 
 /** Mirrors `AgentStepEvent` on the server; one ordered stream per turn. */
 export type ChatStepEvent =
@@ -26,6 +27,7 @@ type ChatStreamCallbacks = {
   onStatus?: (phase: string) => void;
   /** Live trace of the turn: reasoning and tool activity, in order. */
   onStepEvent?: (event: ChatStepEvent) => void;
+  onArtifact?: (artifact: ChatArtifact) => void;
 };
 
 function eventValue(block: string, field: string) {
@@ -84,6 +86,15 @@ export async function readChatStream<T>(
       "kind" in payload
     ) {
       callbacks.onStepEvent?.(payload as ChatStepEvent);
+      return;
+    }
+    if (
+      event === "artifact" &&
+      payload &&
+      typeof payload === "object" &&
+      "kind" in payload
+    ) {
+      callbacks.onArtifact?.(payload as ChatArtifact);
       return;
     }
     if (event === "result") {

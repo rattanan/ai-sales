@@ -51,6 +51,9 @@ describe("buildToolCatalog", () => {
         "list_data_sources",
         "query_database",
         "web_search",
+        "display_qr",
+        "display_chart",
+        "display_image",
         "get_current_datetime",
       ]),
     );
@@ -59,13 +62,32 @@ describe("buildToolCatalog", () => {
   it("narrows the catalog to the requested scope", () => {
     expect([
       ...buildToolCatalog(options({ scope: "DATABASES" })).keys(),
-    ]).toEqual(["list_data_sources", "query_database", "get_current_datetime"]);
+    ]).toEqual([
+      "list_data_sources",
+      "query_database",
+      "display_qr",
+      "display_chart",
+      "display_image",
+      "get_current_datetime",
+    ]);
     expect([
       ...buildToolCatalog(options({ scope: "CONVERSATION_HISTORY" })).keys(),
-    ]).toEqual(["search_conversation_history", "get_current_datetime"]);
+    ]).toEqual([
+      "search_conversation_history",
+      "display_qr",
+      "display_chart",
+      "display_image",
+      "get_current_datetime",
+    ]);
     expect([
       ...buildToolCatalog(options({ scope: "BUSINESS_INSIGHT" })).keys(),
-    ]).toEqual(["search_business_insights", "get_current_datetime"]);
+    ]).toEqual([
+      "search_business_insights",
+      "display_qr",
+      "display_chart",
+      "display_image",
+      "get_current_datetime",
+    ]);
   });
 
   it("keeps the clock available in every scope", () => {

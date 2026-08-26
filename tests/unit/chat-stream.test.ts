@@ -6,7 +6,7 @@ describe("readChatStream", () => {
     const encoder = new TextEncoder();
     const chunks = [
       'event: status\ndata: {"phase":"retrieving"}\n\nevent: token\nda',
-      'ta: "สวัสดี"\n\nevent: result\ndata: {"id":"message-1"}\n\n',
+      'ta: "สวัสดี"\n\nevent: artifact\ndata: {"id":"qr-1","kind":"qr","svg":"<svg/>"}\n\nevent: result\ndata: {"id":"message-1"}\n\n',
     ];
     const response = new Response(
       new ReadableStream({
@@ -19,14 +19,21 @@ describe("readChatStream", () => {
     );
     const onToken = vi.fn();
     const onStatus = vi.fn();
+    const onArtifact = vi.fn();
 
     const result = await readChatStream<{ id: string }>(response, {
       onToken,
       onStatus,
+      onArtifact,
     });
 
     expect(onStatus).toHaveBeenCalledWith("retrieving");
     expect(onToken).toHaveBeenCalledWith("สวัสดี");
+    expect(onArtifact).toHaveBeenCalledWith({
+      id: "qr-1",
+      kind: "qr",
+      svg: "<svg/>",
+    });
     expect(result).toEqual({ id: "message-1" });
   });
 

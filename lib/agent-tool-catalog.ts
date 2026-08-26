@@ -12,6 +12,7 @@ export type AgentToolGroupKey =
   | "INSIGHT"
   | "DATABASE"
   | "WEB"
+  | "DISPLAY"
   | "PLATFORM";
 
 export type AgentToolCatalogEntry = {
@@ -27,6 +28,7 @@ export const AGENT_TOOL_GROUP_LABEL: Record<AgentToolGroupKey, string> = {
   INSIGHT: "ผลวิเคราะห์ธุรกิจ",
   DATABASE: "ฐานข้อมูล",
   WEB: "อินเทอร์เน็ต",
+  DISPLAY: "การแสดงผล",
   PLATFORM: "ข้อมูลระบบ",
 };
 
@@ -81,6 +83,24 @@ export const AGENT_TOOL_CATALOG: AgentToolCatalogEntry[] = [
     group: "WEB",
   },
   {
+    name: "display_qr",
+    label: "แสดง QR Code",
+    description: "สร้าง QR จาก payload ที่มีหลักฐานอยู่ในบทสนทนา",
+    group: "DISPLAY",
+  },
+  {
+    name: "display_chart",
+    label: "แสดงกราฟ",
+    description: "แสดง bar, line, pie หรือ doughnut จากตัวเลขที่มีหลักฐาน",
+    group: "DISPLAY",
+  },
+  {
+    name: "display_image",
+    label: "แสดงรูปภาพ",
+    description: "ดาวน์โหลดและตรวจรูปจาก HTTPS URL ก่อนแสดงในแชท",
+    group: "DISPLAY",
+  },
+  {
     name: "get_current_datetime",
     label: "ตรวจวันที่ปัจจุบัน",
     description: "อ่านวันเวลาจริงตอนเรียก แทนการเดาจากความจำของโมเดล",
@@ -94,5 +114,13 @@ export const AGENT_TOOL_GROUP_ORDER: AgentToolGroupKey[] = [
   "INSIGHT",
   "DATABASE",
   "WEB",
+  "DISPLAY",
   "PLATFORM",
 ];
+
+/** Visible-media tools are opt-in because they add persisted chat artifacts. */
+export const DEFAULT_DISABLED_AGENT_TOOLS = [
+  "display_qr",
+  "display_chart",
+  "display_image",
+] as const;

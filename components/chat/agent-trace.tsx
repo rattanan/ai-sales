@@ -10,6 +10,7 @@ import {
   Database,
   FileSearch,
   Globe2,
+  ImageIcon,
   LoaderCircle,
   MessageSquare,
   Plug,
@@ -48,6 +49,9 @@ const TOOL_LABEL: Record<string, string> = {
   list_data_sources: "ดูรายการฐานข้อมูล",
   query_database: "ดึงข้อมูลจากฐานข้อมูล",
   web_search: "ค้นเว็บ",
+  display_qr: "แสดง QR Code",
+  display_chart: "แสดงกราฟ",
+  display_image: "แสดงรูปภาพ",
   get_current_datetime: "ตรวจวันที่ปัจจุบัน",
   ntop_search: "ค้นข้อมูลใน NTOP",
   ntop_get: "อ่านรายละเอียดจาก NTOP",
@@ -67,6 +71,7 @@ const GROUP_ICON: Record<
   API: Plug,
   NTOP: Sparkles,
   WEB: Globe2,
+  DISPLAY: ImageIcon,
   PLATFORM: Clock,
 };
 

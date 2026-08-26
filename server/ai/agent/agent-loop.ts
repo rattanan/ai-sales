@@ -12,10 +12,12 @@ import {
 import { toolCatalogPayload } from "@/server/ai/agent/tool-registry";
 import type {
   AgentRunContext,
+  GeneratedChatArtifact,
   AgentToolCitation,
   AgentToolDefinition,
   GroundingEvidence,
 } from "@/server/ai/agent/types";
+import { appendDisplayGrounding } from "@/server/ai/display-artifacts/grounding";
 
 export type AgentMessage =
   | { role: "system"; content: string }
@@ -76,6 +78,7 @@ export type AgentLoopResult = {
   evidence: GroundingEvidence[];
   citations: AgentToolCitation[];
   proposals: NtopActionDraft[];
+  artifacts: GeneratedChatArtifact[];
   traces: ToolTrace[];
   stepsUsed: number;
   inputTokens?: number;
@@ -146,12 +149,14 @@ export async function runAgentLoop(input: {
   callProvider: AgentProviderCall;
   onToken: (token: string) => void | Promise<void>;
   onStepEvent?: (event: AgentStepEvent) => void | Promise<void>;
+  onArtifact?: (artifact: GeneratedChatArtifact) => void | Promise<void>;
 }): Promise<AgentLoopResult> {
   const messages = [...input.messages];
   const tools = toolCatalogPayload(input.catalog);
   const evidence: GroundingEvidence[] = [];
   const citations: AgentToolCitation[] = [];
   const proposals: NtopActionDraft[] = [];
+  const artifacts: GeneratedChatArtifact[] = [];
   const traces: ToolTrace[] = [];
   const attempted = new Set<string>();
   const maxToolCalls = input.maxToolCalls ?? input.maxSteps * 3;
@@ -240,13 +245,17 @@ export async function runAgentLoop(input: {
     }
 
     messages.push(assistantToolCallMessage(answer?.content ?? "", toolCalls));
-    for (const call of toolCalls) {
+    for (const [callIndex, call] of toolCalls.entries()) {
+      const definition = input.catalog.get(call.name);
+      const visibleToolCallId = definition?.traceRedacted
+        ? `redacted-${step}-${callIndex}`
+        : call.id;
       await input.onStepEvent?.({
         kind: "tool_start",
         step,
-        toolCallId: call.id,
+        toolCallId: visibleToolCallId,
         toolName: call.name,
-        arguments: call.arguments,
+        arguments: definition?.traceRedacted ? {} : call.arguments,
       });
       const repeated = attempted.has(callSignature(call));
       const exhausted = executedCalls >= maxToolCalls;
@@ -263,20 +272,31 @@ export async function runAgentLoop(input: {
             });
       if (!exhausted && !repeated) executedCalls += 1;
       attempted.add(callSignature(call));
-      traces.push(executed.trace);
+      traces.push({
+        ...executed.trace,
+        toolCallId: visibleToolCallId,
+      });
       evidence.push(...executed.evidence);
       if (executed.result.citation) citations.push(executed.result.citation);
       if (executed.result.proposal) proposals.push(executed.result.proposal);
+      for (const artifact of executed.result.artifacts ?? []) {
+        artifacts.push(artifact);
+        await input.onArtifact?.(artifact);
+      }
       messages.push({
         role: "tool",
         tool_call_id: call.id,
         name: call.name,
         content: executed.message,
       });
+      input.context.displayGroundingText = appendDisplayGrounding(
+        input.context.displayGroundingText,
+        executed.message,
+      );
       await input.onStepEvent?.({
         kind: "tool_end",
         step,
-        toolCallId: call.id,
+        toolCallId: visibleToolCallId,
         toolName: call.name,
         isError: executed.result.isError,
         errorCode: executed.result.errorCode,
@@ -294,6 +314,7 @@ export async function runAgentLoop(input: {
     evidence,
     citations,
     proposals,
+    artifacts,
     traces,
     stepsUsed,
     inputTokens,

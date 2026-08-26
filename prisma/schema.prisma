@@ -857,7 +857,7 @@ model Bot {
   databaseToolsEnabled Boolean               @default(true)
   agenticEnabled       Boolean               @default(false)
   maxToolSteps         Int                   @default(6)
-  disabledTools        String[]
+  disabledTools        String[]              @default(["display_qr", "display_chart", "display_image"])
   primaryColor         String                @default("#4f46e5")
   headerColor          String                @default("#111827")
   chatBubbleColor      String                @default("#eef2ff")
@@ -1345,12 +1345,30 @@ model ChatMessage {
   retrievalTraces MessageRetrievalTrace[]
   toolTraces      ToolExecutionTrace[]
   reasoningSteps  MessageReasoningStep[]
+  artifacts       ChatMessageArtifact[]
   ntopActions     NtopActionProposal[]
   createdAt       DateTime                @default(now())
 
   @@index([conversationId, createdAt])
   @@index([role, createdAt])
   @@index([content(ops: raw("gin_trgm_ops"))], type: Gin, map: "ChatMessage_content_trgm_idx")
+}
+
+/// A bounded, validated visual produced by a display system tool. Structured
+/// QR/chart payloads stay in JSON; fetched image bytes stay same-origin and are
+/// served only after the owning conversation has been authorized.
+model ChatMessageArtifact {
+  id         String      @id
+  messageId  String
+  kind       String
+  payload    Json
+  mediaBytes Bytes?
+  mediaType  String?
+  position   Int
+  message    ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  createdAt  DateTime    @default(now())
+
+  @@unique([messageId, position])
 }
 
 model NtopActionProposal {

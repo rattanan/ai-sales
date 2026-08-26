@@ -33,6 +33,12 @@ import type { getEffectiveAiPrivacyPolicy } from "@/server/services/privacy-poli
 import { maskFreeText } from "@/server/services/sensitive-data";
 import { activeAiEndpoint } from "@/server/services/ai-endpoint-service";
 import { logger } from "@/server/services/logger";
+import {
+  artifactCreateRows,
+  liveChatArtifact,
+  storedChatArtifacts,
+} from "@/server/services/chat-artifact-service";
+import type { ChatArtifact } from "@/types/chat-artifact";
 import { failure, success } from "@/types/result";
 
 type AgenticLoopResult = Awaited<ReturnType<typeof runAgentLoop>>;
@@ -115,6 +121,7 @@ export type AgenticTurnInput = {
   startedAt: number;
   onToken?: (token: string) => void | Promise<void>;
   onStepEvent?: (event: AgentStepEvent) => void;
+  onArtifact?: (artifact: ChatArtifact) => void;
 };
 
 function scopeAllows(scope: ChatScope, group: "API" | "NTOP") {
@@ -169,16 +176,7 @@ function unavailableTools(
 }
 
 function userTurnContent(input: AgenticTurnInput) {
-  const attachmentContext = chatAttachmentEvidence(
-    input.attachments,
-    input.userMessage.content,
-    input.bot.providerConfig?.contextSize ?? 12_000,
-  )
-    .map(
-      (item, index) =>
-        `[ไฟล์แนบ ${index + 1}] ${item.documentName}\n${maskFreeText(item.content, input.privacyPolicy)}`,
-    )
-    .join("\n\n");
+  const attachmentContext = maskedAttachmentContext(input);
   const question = maskFreeText(input.userMessage.content, input.privacyPolicy);
   const text = attachmentContext
     ? `ไฟล์ที่ผู้ใช้แนบมาในเทิร์นนี้:\n${attachmentContext}\n\nคำถาม:\n${question}`
@@ -198,6 +196,19 @@ function userTurnContent(input: AgenticTurnInput) {
   return visualPages.length
     ? [{ type: "text" as const, text }, ...visualPages]
     : text;
+}
+
+function maskedAttachmentContext(input: AgenticTurnInput) {
+  return chatAttachmentEvidence(
+    input.attachments,
+    input.userMessage.content,
+    input.bot.providerConfig?.contextSize ?? 12_000,
+  )
+    .map(
+      (item, index) =>
+        `[ไฟล์แนบ ${index + 1}] ${item.documentName}\n${maskFreeText(item.content, input.privacyPolicy)}`,
+    )
+    .join("\n\n");
 }
 
 export async function completeAgenticTurn(input: AgenticTurnInput) {
@@ -229,6 +240,14 @@ export async function completeAgenticTurn(input: AgenticTurnInput) {
     timezone: DEFAULT_TIMEZONE,
     privacyPolicy: input.privacyPolicy,
     isUniversal: input.isUniversal,
+    displayGroundingText: [
+      maskFreeText(input.userMessage.content, input.privacyPolicy),
+      ...input.memory.map((message) =>
+        maskFreeText(message.content, input.privacyPolicy),
+      ),
+      maskedAttachmentContext(input),
+    ].join("\n"),
+    displayArtifactCount: 0,
   };
 
   const reasoningEffort = (await reasoningEffortSupported(
@@ -298,6 +317,13 @@ export async function completeAgenticTurn(input: AgenticTurnInput) {
       await input.onToken?.(token);
     },
     onStepEvent: (event) => input.onStepEvent?.(event),
+    // QR/chart payloads are small enough to stream immediately. Image bytes
+    // wait for the final persisted response so a megabyte-scale data URL does
+    // not enter the SSE channel during normal operation.
+    onArtifact: (artifact) =>
+      artifact.kind === "image"
+        ? undefined
+        : input.onArtifact?.(liveChatArtifact(artifact)),
     callProvider: async ({
       messages: turnMessages,
       tools,
@@ -495,8 +521,14 @@ async function persistAgenticTurn(
                 })),
               }
             : undefined,
+          artifacts: loop.artifacts.length
+            ? { create: artifactCreateRows(loop.artifacts) }
+            : undefined,
         },
-        include: { citations: true },
+        include: {
+          citations: true,
+          artifacts: { orderBy: { position: "asc" } },
+        },
       });
       // Only the first proposal becomes an action card: the confirmation UI
       // handles one pending write at a time.
@@ -538,6 +570,8 @@ async function persistAgenticTurn(
             toolStepCount: loop.stepsUsed,
             toolCallCount: loop.traces.length,
             failedToolCount: failedTools.length,
+            artifactCount: loop.artifacts.length,
+            artifactKinds: loop.artifacts.map((artifact) => artifact.kind),
             errorCode: errorCode ?? null,
           },
         },
@@ -591,6 +625,9 @@ async function persistAgenticTurn(
         quote: citation.quote,
         metadata: citation.metadata,
       })),
+      artifacts: assistant
+        ? storedChatArtifacts(assistant.artifacts)
+        : loop.artifacts.map(liveChatArtifact),
       reasoningTimeline: loop.reasoning.map((round) => ({
         step: round.step,
         text: round.text,
