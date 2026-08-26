@@ -855,6 +855,9 @@ model Bot {
   fallbackMessage      String?
   apiToolsEnabled      Boolean               @default(true)
   databaseToolsEnabled Boolean               @default(true)
+  agenticEnabled       Boolean               @default(false)
+  maxToolSteps         Int                   @default(6)
+  disabledTools        String[]
   primaryColor         String                @default("#4f46e5")
   headerColor          String                @default("#111827")
   chatBubbleColor      String                @default("#eef2ff")
@@ -934,6 +937,8 @@ model BotProviderConfig {
   contextSize     Int               @default(12000)
   citationEnabled Boolean           @default(true)
   memoryMode      String            @default("CONVERSATION")
+  toolMode        String            @default("SEPARATE")
+  reasoningEffort String?
   bot             Bot               @relation(fields: [botId], references: [id], onDelete: Cascade)
   provider        LlmProvider?      @relation(fields: [providerId], references: [id], onDelete: SetNull)
   chatEndpoint    AiEndpointConfig? @relation(fields: [chatEndpointId], references: [id], onDelete: SetNull)
@@ -1330,11 +1335,16 @@ model ChatMessage {
   scope           ChatScope?
   mode            ChatMode?
   scopeConfig     Json?
+  promptVersion   String?
+  toolStepCount   Int?
+  reasoningEffort String?
+  reasoningChars  Int?
   conversation    Conversation            @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   citations       MessageCitation[]
   feedback        ChatMessageFeedback?
   retrievalTraces MessageRetrievalTrace[]
   toolTraces      ToolExecutionTrace[]
+  reasoningSteps  MessageReasoningStep[]
   ntopActions     NtopActionProposal[]
   createdAt       DateTime                @default(now())
 
@@ -1344,29 +1354,29 @@ model ChatMessage {
 }
 
 model NtopActionProposal {
-  id               String           @id @default(cuid())
-  organizationId   String
-  userId           String
-  conversationId   String
-  messageId        String
-  type             NtopActionType
-  status           NtopActionStatus @default(PENDING)
-  title            String
-  summary          String
-  payload          Json
-  result           Json?
-  idempotencyKey   String           @unique
-  errorCode        String?
-  errorMessage     String?
-  expiresAt        DateTime
-  confirmedAt      DateTime?
-  completedAt      DateTime?
-  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  conversation     Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  message          ChatMessage      @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  id             String           @id @default(cuid())
+  organizationId String
+  userId         String
+  conversationId String
+  messageId      String
+  type           NtopActionType
+  status         NtopActionStatus @default(PENDING)
+  title          String
+  summary        String
+  payload        Json
+  result         Json?
+  idempotencyKey String           @unique
+  errorCode      String?
+  errorMessage   String?
+  expiresAt      DateTime
+  confirmedAt    DateTime?
+  completedAt    DateTime?
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation   Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message        ChatMessage      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 
   @@index([organizationId, userId, status, createdAt])
   @@index([conversationId, createdAt])
@@ -1394,6 +1404,8 @@ model ToolExecutionTrace {
   messageId    String
   toolType     String
   toolId       String?
+  stepIndex    Int?
+  toolCallId   String?
   status       ToolTraceStatus
   maskedInput  Json?
   maskedOutput Json?
@@ -1404,6 +1416,21 @@ model ToolExecutionTrace {
 
   @@index([messageId, createdAt])
   @@index([toolType, toolId, status])
+}
+
+/// One round of an agentic turn's chain of thought, so a reloaded conversation
+/// shows the same interleaved trace the asker watched being produced.
+model MessageReasoningStep {
+  id        String      @id @default(cuid())
+  messageId String
+  stepIndex Int
+  text      String
+  /// The round ran past the storage cap and the tail was dropped.
+  truncated Boolean     @default(false)
+  message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
+
+  @@unique([messageId, stepIndex])
 }
 
 model MessageCitation {
@@ -1722,32 +1749,34 @@ model LegacyApi {
 }
 
 model AiEndpointConfig {
-  id                    String                 @id @default(cuid())
-  organizationId        String
-  name                  String
-  kind                  AiEndpointKind
-  providerType          AiEndpointProviderType @default(OPENAI_COMPATIBLE)
-  baseUrl               String
-  model                 String
-  temperature           Float?
-  maxTokens             Int?
-  batchSize             Int?
-  vectorDimension       Int?
-  timeoutMs             Int                    @default(30000)
-  maxRetries            Int                    @default(2)
-  active                Boolean                @default(false)
-  lastHealthStatus      String                 @default("UNKNOWN")
-  lastHealthMessage     String?
-  lastLatencyMs         Int?
-  lastDetectedDimension Int?
-  lastTestedAt          DateTime?
-  createdById           String
-  organization          Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy             User                   @relation("AiEndpointCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  credential            AiEndpointCredential?
-  botConfigurations     BotProviderConfig[]
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
+  id                      String                 @id @default(cuid())
+  organizationId          String
+  name                    String
+  kind                    AiEndpointKind
+  providerType            AiEndpointProviderType @default(OPENAI_COMPATIBLE)
+  baseUrl                 String
+  model                   String
+  temperature             Float?
+  maxTokens               Int?
+  batchSize               Int?
+  vectorDimension         Int?
+  timeoutMs               Int                    @default(30000)
+  maxRetries              Int                    @default(2)
+  supportsToolCalling     Boolean                @default(false)
+  supportsReasoningEffort Boolean                @default(false)
+  active                  Boolean                @default(false)
+  lastHealthStatus        String                 @default("UNKNOWN")
+  lastHealthMessage       String?
+  lastLatencyMs           Int?
+  lastDetectedDimension   Int?
+  lastTestedAt            DateTime?
+  createdById             String
+  organization            Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy               User                   @relation("AiEndpointCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  credential              AiEndpointCredential?
+  botConfigurations       BotProviderConfig[]
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
 
   @@unique([organizationId, kind, name])
   @@index([organizationId, kind, active])

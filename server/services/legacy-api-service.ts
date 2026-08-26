@@ -215,7 +215,9 @@ export async function saveLegacyApi(
   }
 }
 
-function parameters(value: Prisma.JsonValue): LegacyApiParameter[] | null {
+export function legacyApiParameters(
+  value: Prisma.JsonValue,
+): LegacyApiParameter[] | null {
   const parsed = legacyApiParameterSchema.array().safeParse(value);
   return parsed.success ? parsed.data : null;
 }
@@ -610,7 +612,7 @@ export async function invokeLegacyApi(
           });
     if (!assigned) return failure("NOT_FOUND", "Bot API assignment not found.");
   }
-  const definitions = parameters(api.parameterDefinitions);
+  const definitions = legacyApiParameters(api.parameterDefinitions);
   if (!definitions)
     return failure(
       "VALIDATION_ERROR",
@@ -1000,7 +1002,7 @@ export async function planLegacyApiToolCall(
     name: legacyApi.name,
     description: legacyApi.description,
     method: legacyApi.method,
-    parameters: parameters(legacyApi.parameterDefinitions) ?? [],
+    parameters: legacyApiParameters(legacyApi.parameterDefinitions) ?? [],
   }));
   const deterministicPlan = fallbackLegacyApiToolPlan(
     authorized,
@@ -1168,7 +1170,7 @@ export function fallbackLegacyApiToolPlan(
       reason: "MULTIPLE_MATCHING_API_TOOLS",
     };
   const selected = selectable[0];
-  const definitions = parameters(selected.parameterDefinitions) ?? [];
+  const definitions = legacyApiParameters(selected.parameterDefinitions) ?? [];
   const required = definitions.filter(
     (parameter) => parameter.required && parameter.defaultValue === undefined,
   );

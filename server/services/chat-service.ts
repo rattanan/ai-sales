@@ -5,10 +5,7 @@ import { db } from "@/server/db";
 import { env } from "@/schemas/env";
 import { getProviderSecret } from "@/server/services/llm-provider-config";
 import { getEffectiveAiPrivacyPolicy } from "@/server/services/privacy-policy";
-import {
-  retrieveBotContext,
-  type RetrievedKnowledge,
-} from "@/server/services/retrieval-service";
+import { retrieveBotContext } from "@/server/services/retrieval-service";
 import { consumeRateLimit } from "@/server/services/rate-limit";
 import { failure, success } from "@/types/result";
 import {
@@ -41,9 +38,41 @@ import {
   type WebSearchEvidence,
 } from "@/server/services/web-search";
 import type { ParsedChatAttachment } from "@/server/services/chat-attachment-service";
+import { maskFreeText } from "@/server/services/sensitive-data";
+import type {
+  AgentTraceStep,
+  GroundingEvidence,
+} from "@/server/ai/agent/types";
+import type { AgentStepEvent } from "@/server/ai/agent/agent-loop";
+import {
+  agenticToolCallingAvailable,
+  completeAgenticTurn,
+} from "@/server/services/agentic-chat-service";
 
 function isThai(value: string) {
   return /[\u0E00-\u0E7F]/.test(value);
+}
+
+function legacyToolTimeline(
+  toolName: string,
+  type: string,
+  failed: boolean,
+  durationMs: number,
+  errorCode?: string,
+): AgentTraceStep[] {
+  return [
+    {
+      step: 0,
+      toolName,
+      type,
+      status: failed ? ("FAILED" as const) : ("COMPLETED" as const),
+      durationMs,
+      errorCode: errorCode ?? null,
+      // The legacy pipeline keeps no per-tool arguments or result summary.
+      arguments: null,
+      summary: null,
+    },
+  ];
 }
 
 function ntopToolType(outcome: NtopChatOutcome) {
@@ -56,28 +85,6 @@ function noEvidenceMessage(query: string) {
     ? "ไม่พบข้อมูลที่เพียงพอในฐานความรู้ที่คุณมีสิทธิ์เข้าถึง กรุณาลองปรับคำถามหรือสอบถามผู้ดูแลให้เพิ่มเอกสารที่เกี่ยวข้อง"
     : "I could not find enough evidence in the knowledge you can access. Try rephrasing the question or ask an administrator to add the relevant documents.";
 }
-
-function maskFreeText(
-  value: string,
-  policy: Awaited<ReturnType<typeof getEffectiveAiPrivacyPolicy>>,
-) {
-  if (!policy.maskSensitiveData) return value;
-  let masked = value;
-  if (policy.maskingRules.maskEmail)
-    masked = masked.replace(
-      /[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g,
-      "[MASKED_EMAIL]",
-    );
-  if (policy.maskingRules.maskPhone)
-    masked = masked.replace(/\+?[\d()\s-]{8,20}/g, "[MASKED_PHONE]");
-  if (policy.maskingRules.maskFinancialAccount)
-    masked = masked.replace(/\b\d{13,19}\b/g, "[MASKED_ACCOUNT]");
-  return masked;
-}
-
-type GroundingEvidence = Omit<RetrievedKnowledge, "chunkId"> & {
-  chunkId?: string;
-};
 
 export function persistableKnowledgeCitations(
   evidence: GroundingEvidence[],
@@ -100,7 +107,7 @@ function overlapScore(query: string, content: string) {
   return [...terms].filter((term) => text.includes(term)).length / terms.size;
 }
 
-function chatAttachmentEvidence(
+export function chatAttachmentEvidence(
   attachments: ParsedChatAttachment[],
   query: string,
   contextSize: number,
@@ -247,7 +254,7 @@ async function scopedChatEvidence(
     }));
 }
 
-async function resolveChatProvider(
+export async function resolveChatProvider(
   organizationId: string,
   providerId: string | null | undefined,
   modelOverride: string | null | undefined,
@@ -570,9 +577,11 @@ export async function sendKnowledgeChatMessage(
     sourceIds?: string[];
     documentIds?: string[];
     webSearch?: boolean;
+    reasoningEffort?: "low" | "medium" | "high";
     attachments?: ParsedChatAttachment[];
     isUniversal?: boolean;
     onToken?: (token: string) => void | Promise<void>;
+    onStepEvent?: (event: AgentStepEvent) => void;
   },
 ) {
   await requireBotUse(context, input.botId);
@@ -601,7 +610,7 @@ export async function sendKnowledgeChatMessage(
   const databaseScope = ["SMART", "ALL_ACCESSIBLE", "DATABASES"].includes(
     scope,
   );
-  if (databaseScope && bot.databaseToolsEnabled) {
+  if (databaseScope && bot.databaseToolsEnabled && !bot.agenticEnabled) {
     const globalDatabaseSources = await db.dataSource.findMany({
       where: {
         workspaceId: context.workspaceId,
@@ -703,6 +712,47 @@ export async function sendKnowledgeChatMessage(
   const privacyPolicyPromise = getEffectiveAiPrivacyPolicy(
     context.organizationId,
   );
+  if (
+    bot.agenticEnabled &&
+    (await agenticToolCallingAvailable(
+      context.organizationId,
+      bot.providerConfig?.chatEndpointId,
+    ))
+  ) {
+    const [privacyPolicy, memory] = await Promise.all([
+      privacyPolicyPromise,
+      conversationMemoryForPrompt(context, {
+        conversationId: conversation.id,
+        botId: bot.id,
+        contextSize: bot.providerConfig?.contextSize ?? 12_000,
+        memoryMode: bot.providerConfig?.memoryMode ?? "CONVERSATION",
+        excludeMessageId: userMessage.id,
+      }),
+    ]);
+    return completeAgenticTurn({
+      context,
+      bot,
+      conversation,
+      userMessage,
+      requestId,
+      scope,
+      mode: input.mode ?? "AUTO",
+      attachments: input.attachments ?? [],
+      attachmentSummaries,
+      sourceIds: input.sourceIds ?? [],
+      documentIds: input.documentIds ?? [],
+      webSearch: input.webSearch ?? false,
+      isUniversal: input.isUniversal ?? false,
+      privacyPolicy,
+      reasoningEffort: input.reasoningEffort,
+      memory,
+      departmentName: membership?.organizationUnit?.name ?? undefined,
+      projectName: selectedProject?.name ?? undefined,
+      startedAt: performance.now(),
+      onToken: input.onToken,
+      onStepEvent: input.onStepEvent,
+    });
+  }
   const explicitNtopLookup = hasExplicitNtopLookup(input.message);
   const useWebSearch = Boolean(input.webSearch && !explicitNtopLookup);
   const ntopContextPromise =
@@ -1172,27 +1222,41 @@ export async function sendKnowledgeChatMessage(
         quote: citation.quote,
         metadata: citation.metadata,
       })),
-      toolActivity: useWebSearch
-        ? {
-            type: "WEB_SEARCH",
-            status: webSearchFailed ? "FAILED" : "COMPLETED",
-          }
+      // The legacy pipeline runs at most one tool, but it reports through the
+      // same timeline shape as the agent loop so the client has one contract.
+      toolTimeline: useWebSearch
+        ? legacyToolTimeline(
+            "web_search",
+            "WEB_SEARCH",
+            webSearchFailed,
+            webSearchDurationMs,
+            webSearchFailed ? "WEB_SEARCH_ERROR" : undefined,
+          )
         : databaseAnswer?.queryId
-          ? {
-              type: "DATABASE",
-              status: databaseAnswer.failed ? "FAILED" : "COMPLETED",
-            }
+          ? legacyToolTimeline(
+              "query_database",
+              "DATABASE",
+              Boolean(databaseAnswer.failed),
+              0,
+              databaseAnswer.failed ? "DATABASE_QUERY_ERROR" : undefined,
+            )
           : legacyApiAnswer?.invocationId
-            ? {
-                type: "API_TOOL",
-                status: legacyApiAnswer.failed ? "FAILED" : "COMPLETED",
-              }
+            ? legacyToolTimeline(
+                "legacy_api",
+                "API_TOOL",
+                Boolean(legacyApiAnswer.failed),
+                0,
+                legacyApiAnswer.failed ? "LEGACY_API_ERROR" : undefined,
+              )
             : ntopOutcome.toolUsed
-              ? {
-                  type: ntopToolType(ntopOutcome),
-                  status: ntopOutcome.toolErrorCode ? "FAILED" : "COMPLETED",
-                }
-              : undefined,
+              ? legacyToolTimeline(
+                  "ntop",
+                  ntopToolType(ntopOutcome),
+                  Boolean(ntopOutcome.toolErrorCode),
+                  0,
+                  ntopOutcome.toolErrorCode ?? undefined,
+                )
+              : [],
       suggestedAction: completedTurn.action
         ? {
             id: completedTurn.action.id,
@@ -1257,8 +1321,10 @@ export async function sendUniversalChatMessage(
     sourceIds: string[];
     documentIds: string[];
     webSearch?: boolean;
+    reasoningEffort?: "low" | "medium" | "high";
     attachments?: ParsedChatAttachment[];
     onToken?: (token: string) => void | Promise<void>;
+    onStepEvent?: (event: AgentStepEvent) => void;
   },
 ) {
   const existingConversation = input.conversationId
@@ -1313,9 +1379,11 @@ export async function sendUniversalChatMessage(
     sourceIds: input.sourceIds,
     documentIds: input.documentIds,
     webSearch: input.webSearch,
+    reasoningEffort: input.reasoningEffort,
     attachments: input.attachments,
     isUniversal: true,
     authMode: context.authMode ?? "LOCAL",
     onToken: input.onToken,
+    onStepEvent: input.onStepEvent,
   });
 }

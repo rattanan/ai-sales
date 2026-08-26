@@ -21,8 +21,13 @@ function safeErrorDiagnostics(error: unknown) {
   };
 }
 
+export type ChatStreamEventEmitter = (event: unknown) => void;
+
 export function chatStreamResponse<T>(
-  operation: (emitToken: TokenEmitter) => Promise<AppResult<T>>,
+  operation: (
+    emitToken: TokenEmitter,
+    emitStepEvent: ChatStreamEventEmitter,
+  ) => Promise<AppResult<T>>,
 ) {
   const encoder = new TextEncoder();
   let cancelled = false;
@@ -40,7 +45,10 @@ export function chatStreamResponse<T>(
       void (async () => {
         emit("status", { phase: "retrieving" });
         try {
-          const result = await operation((token) => emit("token", token));
+          const result = await operation(
+            (token) => emit("token", token),
+            (event) => emit("step", event),
+          );
           if (result.ok) emit("result", result.data);
           else
             emit("error", {

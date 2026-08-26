@@ -163,6 +163,9 @@ export async function saveBotAction(_state: unknown, formData: FormData) {
         fallbackMessage: parsed.data.fallbackMessage,
         apiToolsEnabled: parsed.data.apiToolsEnabled,
         databaseToolsEnabled: parsed.data.databaseToolsEnabled,
+        agenticEnabled: parsed.data.agenticEnabled,
+        maxToolSteps: parsed.data.maxToolSteps,
+        disabledTools: parsed.data.disabledTools,
         primaryColor: parsed.data.primaryColor,
         headerColor: parsed.data.headerColor,
         chatBubbleColor: parsed.data.chatBubbleColor,
@@ -194,6 +197,8 @@ export async function saveBotAction(_state: unknown, formData: FormData) {
         contextSize: parsed.data.contextSize,
         citationEnabled: parsed.data.citationEnabled,
         memoryMode: parsed.data.memoryMode,
+        toolMode: parsed.data.toolMode,
+        reasoningEffort: parsed.data.reasoningEffort,
       };
       await tx.botProviderConfig.upsert({
         where: { botId: bot.id },

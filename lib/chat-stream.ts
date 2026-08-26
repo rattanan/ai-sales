@@ -1,8 +1,31 @@
 import { readJsonResponse } from "@/lib/http-response";
 
+/** Mirrors `AgentStepEvent` on the server; one ordered stream per turn. */
+export type ChatStepEvent =
+  | { kind: "reasoning"; step: number; delta: string }
+  | {
+      kind: "tool_start";
+      step: number;
+      toolCallId: string;
+      toolName: string;
+      arguments?: Record<string, unknown>;
+    }
+  | {
+      kind: "tool_end";
+      step: number;
+      toolCallId: string;
+      toolName: string;
+      isError: boolean;
+      errorCode?: string;
+      durationMs: number;
+      summary: string;
+    };
+
 type ChatStreamCallbacks = {
   onToken: (token: string) => void;
   onStatus?: (phase: string) => void;
+  /** Live trace of the turn: reasoning and tool activity, in order. */
+  onStepEvent?: (event: ChatStepEvent) => void;
 };
 
 function eventValue(block: string, field: string) {
@@ -52,6 +75,15 @@ export async function readChatStream<T>(
       typeof payload.phase === "string"
     ) {
       callbacks.onStatus?.(payload.phase);
+      return;
+    }
+    if (
+      event === "step" &&
+      payload &&
+      typeof payload === "object" &&
+      "kind" in payload
+    ) {
+      callbacks.onStepEvent?.(payload as ChatStepEvent);
       return;
     }
     if (event === "result") {

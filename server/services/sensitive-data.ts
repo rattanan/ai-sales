@@ -225,3 +225,27 @@ export function sanitizeSampleRow(
     ]),
   );
 }
+
+/**
+ * Free-text masking applied to anything a chat turn sends to an AI provider or
+ * an external service. Narrower than `maskSensitiveText`, and driven by the
+ * organization's effective policy rather than the default rule set, so a
+ * workspace that has masking switched off is not silently masked anyway.
+ */
+export function maskFreeText(
+  value: string,
+  policy: { maskSensitiveData: boolean; maskingRules: PiiMaskingRules },
+) {
+  if (!policy.maskSensitiveData) return value;
+  let masked = value;
+  if (policy.maskingRules.maskEmail)
+    masked = masked.replace(
+      /[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g,
+      "[MASKED_EMAIL]",
+    );
+  if (policy.maskingRules.maskPhone)
+    masked = masked.replace(/\+?[\d()\s-]{8,20}/g, "[MASKED_PHONE]");
+  if (policy.maskingRules.maskFinancialAccount)
+    masked = masked.replace(/\b\d{13,19}\b/g, "[MASKED_ACCOUNT]");
+  return masked;
+}

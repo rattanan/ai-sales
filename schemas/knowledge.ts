@@ -33,6 +33,16 @@ export const botConfigurationSchema = z.object({
   fallbackMessage: z.string().trim().max(1_000).optional(),
   apiToolsEnabled: z.preprocess((value) => value === "on", z.boolean()),
   databaseToolsEnabled: z.preprocess((value) => value === "on", z.boolean()),
+  agenticEnabled: z.preprocess((value) => value === "on", z.boolean()),
+  maxToolSteps: z.coerce.number().int().min(1).max(12).default(6),
+  // Tools are opt-out: the form posts only the names switched off, so a tool
+  // added later is enabled for existing bots instead of silently disabled.
+  disabledTools: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((value) =>
+      value === undefined ? [] : Array.isArray(value) ? value : [value],
+    ),
   primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   headerColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   chatBubbleColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
@@ -64,6 +74,11 @@ export const botConfigurationSchema = z.object({
   contextSize: z.coerce.number().int().min(1_000).max(100_000),
   citationEnabled: z.preprocess((value) => value === "on", z.boolean()),
   memoryMode: z.enum(["NONE", "CONVERSATION", "USER_CONSENTED"]),
+  toolMode: z.enum(["SEPARATE", "COMBINED"]).default("SEPARATE"),
+  reasoningEffort: z
+    .union([z.literal(""), z.enum(["low", "medium", "high"])])
+    .optional()
+    .transform((value) => (value ? value : null)),
   rackIds: z.array(z.string().min(1)).max(50),
   dataSourceIds: z.array(z.string().min(1)).max(20),
   legacyApiIds: z.array(z.string().min(1)).max(20),
@@ -205,6 +220,7 @@ export const chatRequestSchema = z.object({
   projectId: z.string().min(1).optional(),
   message: z.string().trim().min(1).max(8_000),
   webSearch: z.boolean().default(false),
+  reasoningEffort: z.enum(["low", "medium", "high"]).optional(),
 });
 
 export const universalChatRequestSchema = z
@@ -232,6 +248,7 @@ export const universalChatRequestSchema = z
       "GENERATE_REPORT",
       "QUERY_LIVE_DATA",
     ]),
+    reasoningEffort: z.enum(["low", "medium", "high"]).optional(),
     sourceIds: z.array(z.string().min(1)).max(100).default([]),
     documentIds: z.array(z.string().min(1)).max(10_000).default([]),
     webSearch: z.boolean().default(false),

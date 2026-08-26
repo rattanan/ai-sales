@@ -5,7 +5,10 @@ import { readChatRequest } from "@/server/http/chat-request";
 import { sendUniversalChatMessage } from "@/server/services/chat-service";
 import { ChatAttachmentRequestError } from "@/server/services/chat-attachment-service";
 
-export const maxDuration = 60;
+// An agentic turn can run several tool steps before the model answers. The
+// deployment proxy allows 300s (docker/proxy_params); the loop's own wall-clock
+// budget in agentic-chat-service stops well inside this ceiling.
+export const maxDuration = 120;
 
 export async function POST(request: Request) {
   const context = await getAuthorizationContext();
@@ -35,11 +38,12 @@ export async function POST(request: Request) {
       { status: 422 },
     );
   try {
-    return chatStreamResponse((onToken) =>
+    return chatStreamResponse((onToken, onStepEvent) =>
       sendUniversalChatMessage(context, {
         ...parsed.data,
         attachments: chatRequest.attachments,
         onToken,
+        onStepEvent,
       }),
     );
   } catch {
