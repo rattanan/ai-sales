@@ -49,11 +49,7 @@ export async function embedKnowledgeQuery(
     embeddingFailedAt.delete(organizationId);
   }
   try {
-    return await embedKnowledgeQueryUncached(
-      organizationId,
-      input,
-      providerId,
-    );
+    return await embedKnowledgeQueryUncached(organizationId, input, providerId);
   } catch (error) {
     embeddingFailedAt.set(organizationId, Date.now());
     throw error;

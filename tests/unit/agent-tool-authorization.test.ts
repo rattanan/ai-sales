@@ -153,7 +153,15 @@ describe("agent tool authorization", () => {
     mocks.botDataSourceFindMany.mockImplementation(
       async ({ where }: { where: { bot: { organizationId: string } } }) =>
         where.bot.organizationId === "org-a"
-          ? [{ dataSource: { id: "ds-1", name: "Sales DB", type: "POSTGRESQL" } }]
+          ? [
+              {
+                dataSource: {
+                  id: "ds-1",
+                  name: "Sales DB",
+                  type: "POSTGRESQL",
+                },
+              },
+            ]
           : [],
     );
     mocks.authorizeResource.mockResolvedValue({ allowed: true });

@@ -22,7 +22,9 @@ export const webSearch = defineAgentTool({
       .trim()
       .min(1)
       .max(300)
-      .describe("คำค้นสำหรับเสิร์ชเอนจิน ห้ามใส่ข้อมูลลับหรือข้อมูลส่วนบุคคลของลูกค้า"),
+      .describe(
+        "คำค้นสำหรับเสิร์ชเอนจิน ห้ามใส่ข้อมูลลับหรือข้อมูลส่วนบุคคลของลูกค้า",
+      ),
   }),
   async execute(context, args) {
     // The query leaves the tenant boundary, so it is masked here rather than
@@ -42,10 +44,9 @@ export const webSearch = defineAgentTool({
       );
     }
     if (!evidence.length)
-      return toolSuccess("ไม่พบผลลัพธ์จากการค้นเว็บสำหรับคำค้นนี้ ลองปรับคำค้น");
-    return toolSuccess(
-      `พบผลการค้นเว็บ ${evidence.length} รายการ`,
-      evidence,
-    );
+      return toolSuccess(
+        "ไม่พบผลลัพธ์จากการค้นเว็บสำหรับคำค้นนี้ ลองปรับคำค้น",
+      );
+    return toolSuccess(`พบผลการค้นเว็บ ${evidence.length} รายการ`, evidence);
   },
 });

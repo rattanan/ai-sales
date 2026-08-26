@@ -66,9 +66,9 @@ export const searchDocuments = defineAgentTool({
       return toolSuccess(
         "ไม่พบเอกสารที่ตรงกับคำค้นนี้ในคลังความรู้ที่ผู้ใช้มีสิทธิ์เข้าถึง ลองปรับคำค้นให้ตรงกับคำที่น่าจะปรากฏในเอกสาร",
       );
-    const names = [
-      ...new Set(evidence.map((item) => item.documentName)),
-    ].join(", ");
+    const names = [...new Set(evidence.map((item) => item.documentName))].join(
+      ", ",
+    );
     return toolSuccess(
       `พบเนื้อหาที่เกี่ยวข้อง ${evidence.length} ส่วน จากเอกสาร: ${names}`,
       evidence,

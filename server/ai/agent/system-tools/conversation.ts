@@ -107,7 +107,11 @@ export const searchBusinessInsights = defineAgentTool({
           findings: snapshot.findings,
           limitations: snapshot.limitations,
         });
-        return { snapshot, content, score: lexicalOverlap(args.query, content) };
+        return {
+          snapshot,
+          content,
+          score: lexicalOverlap(args.query, content),
+        };
       })
       .sort((left, right) => right.score - left.score)
       .slice(0, 6)
@@ -130,7 +134,9 @@ export const searchBusinessInsights = defineAgentTool({
         score: Math.max(score, 0.1),
       }));
     if (!evidence.length)
-      return toolSuccess("ยังไม่มีผลวิเคราะห์ Business Insight สำหรับผู้ใช้คนนี้");
+      return toolSuccess(
+        "ยังไม่มีผลวิเคราะห์ Business Insight สำหรับผู้ใช้คนนี้",
+      );
     return toolSuccess(
       `พบผลวิเคราะห์ ${evidence.length} ชุดที่เกี่ยวข้อง`,
       evidence,

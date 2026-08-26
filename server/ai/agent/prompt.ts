@@ -81,7 +81,8 @@ function runtimeContext(runtime: AgentPromptRuntime) {
     `- ตอนนี้: ${now.datetime} (${now.dayOfWeekTh}) เขตเวลา ${now.timezone} พ.ศ. ${now.buddhistYear}`,
     "  ค่านี้ถูกคำนวณตอนเริ่มเทิร์น ถ้าบทสนทนายาวให้เรียก get_current_datetime เพื่อความแม่นยำ",
   ];
-  if (runtime.workspaceName) lines.push(`- Workspace: ${runtime.workspaceName}`);
+  if (runtime.workspaceName)
+    lines.push(`- Workspace: ${runtime.workspaceName}`);
   if (runtime.departmentName)
     lines.push(`- หน่วยงานของผู้ใช้: ${runtime.departmentName}`);
   if (runtime.projectName) lines.push(`- โครงการ: ${runtime.projectName}`);

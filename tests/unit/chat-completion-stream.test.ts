@@ -145,7 +145,10 @@ describe("readChatCompletionResponse", () => {
                 {
                   index: 0,
                   id: "call_a",
-                  function: { name: "search_documents", arguments: '{"q":"a"}' },
+                  function: {
+                    name: "search_documents",
+                    arguments: '{"q":"a"}',
+                  },
                 },
               ],
             },

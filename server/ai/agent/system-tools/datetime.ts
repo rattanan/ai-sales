@@ -72,7 +72,9 @@ export const getCurrentDatetime = defineAgentTool({
       .string()
       .max(64)
       .optional()
-      .describe('เขตเวลาแบบ IANA เช่น "Asia/Tokyo" ไม่ระบุ = ใช้เขตเวลาของระบบ'),
+      .describe(
+        'เขตเวลาแบบ IANA เช่น "Asia/Tokyo" ไม่ระบุ = ใช้เขตเวลาของระบบ',
+      ),
   }),
   async execute(context, args) {
     const requested = args.timezone;

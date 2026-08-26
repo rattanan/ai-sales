@@ -1111,7 +1111,8 @@ function explicitRequiredApiParameters(
 
   const [parameter] = required;
   if (parameter.type === "BOOLEAN") {
-    const matches = question.match(/\b(?:true|false)\b|(?:ใช่|ไม่ใช่)/giu) ?? [];
+    const matches =
+      question.match(/\b(?:true|false)\b|(?:ใช่|ไม่ใช่)/giu) ?? [];
     if (matches.length !== 1) return {};
     return {
       [parameter.name]: /^(?:true|ใช่)$/iu.test(matches[0]),
@@ -1129,9 +1130,7 @@ function explicitRequiredApiParameters(
     question.match(
       /\b(?=[A-Za-z0-9_-]{4,}\b)(?=[A-Za-z0-9_-]*[A-Za-z])(?=[A-Za-z0-9_-]*\d)[A-Za-z0-9_-]+\b/g,
     ) ?? [];
-  return identifiers.length === 1
-    ? { [parameter.name]: identifiers[0] }
-    : {};
+  return identifiers.length === 1 ? { [parameter.name]: identifiers[0] } : {};
 }
 
 export function fallbackLegacyApiToolPlan(
@@ -1175,9 +1174,7 @@ export function fallbackLegacyApiToolPlan(
     (parameter) => parameter.required && parameter.defaultValue === undefined,
   );
   const supplied = explicitRequiredApiParameters(definitions, question);
-  const missing = required.filter(
-    (parameter) => !(parameter.name in supplied),
-  );
+  const missing = required.filter((parameter) => !(parameter.name in supplied));
   if (missing.length)
     return {
       intent: "CLARIFICATION" as const,

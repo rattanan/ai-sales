@@ -101,9 +101,7 @@ export const listDataSources = defineAgentTool({
         "บอตนี้ยังไม่มีฐานข้อมูลที่ผู้ใช้มีสิทธิ์ใช้งาน หากคำถามต้องใช้ข้อมูลสด ให้แจ้งผู้ใช้ว่ายังไม่ได้เชื่อมต่อฐานข้อมูล",
       );
     return toolSuccess(
-      JSON.stringify(
-        sources.map(({ id, name, type }) => ({ id, name, type })),
-      ),
+      JSON.stringify(sources.map(({ id, name, type }) => ({ id, name, type }))),
     );
   },
 });
