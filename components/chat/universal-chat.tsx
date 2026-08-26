@@ -414,7 +414,7 @@ export function UniversalChat({
 
   return (
     <div
-      className={`grid h-[calc(100dvh-10rem)] min-h-[520px] gap-5 xl:grid-cols-[290px_minmax(0,1fr)] ${sourcePanelOpen ? "2xl:grid-cols-[290px_minmax(0,1fr)_320px]" : ""}`}
+      className={`grid h-[calc(100dvh-7rem)] min-h-[520px] gap-5 xl:grid-cols-[290px_minmax(0,1fr)] ${sourcePanelOpen ? "2xl:grid-cols-[290px_minmax(0,1fr)_320px]" : ""}`}
     >
       <aside className="flex flex-col overflow-hidden rounded-xl border bg-card p-4">
         <Link

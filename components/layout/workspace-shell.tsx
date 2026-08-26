@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ChevronDown, Languages, Menu, ShieldCheck } from "lucide-react";
 import { WorkspaceNav } from "./workspace-nav";
 import {
@@ -14,6 +15,7 @@ import {
 } from "@/components/brand/insightkm-mark";
 import type { NavigationAccess } from "./workspace-nav";
 import { APP_VERSION, type WorkspaceLocale } from "@/lib/workspace-i18n";
+import { isChatSurface } from "@/lib/workspace-chrome";
 
 type WorkspaceShellProps = {
   children: React.ReactNode;
@@ -50,6 +52,7 @@ function WorkspaceShellContent({
   navigation,
 }: Omit<WorkspaceShellProps, "initialLocale">) {
   const { locale, setLocale, t } = useWorkspaceLocale();
+  const fullBleed = isChatSurface(usePathname());
   const initials = (user.name || user.email || "U")
     .split(/\s|@/)
     .slice(0, 2)
@@ -161,15 +164,20 @@ function WorkspaceShellContent({
         </header>
         <main
           id="main-content"
-          className="mx-auto w-full min-w-0 max-w-[1500px] flex-1 p-5 sm:p-7 lg:p-9"
+          className={`w-full min-w-0 flex-1 ${fullBleed ? "p-4" : "mx-auto max-w-[1500px] p-5 sm:p-7 lg:p-9"}`}
         >
           {children}
         </main>
-        <footer className="border-t bg-white/70 px-5 py-4 text-xs text-muted-foreground sm:px-7 lg:px-9">
+        {/* A locked-height screen has nothing to scroll to, so the footer would
+            only sit just below the fold. Its version string stays reachable on
+            every other page. */}
+        <footer
+          hidden={fullBleed}
+          className="border-t bg-white/70 px-5 py-4 text-xs text-muted-foreground sm:px-7 lg:px-9"
+        >
           <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <p>
-              © {new Date().getFullYear()} AI-Sales.{" "}
-              {t("All rights reserved.")}
+              © {new Date().getFullYear()} AI-Sales. {t("All rights reserved.")}
             </p>
             <p>
               {t("Version")} {APP_VERSION}

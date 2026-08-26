@@ -234,7 +234,7 @@ export function KnowledgeChat({
   }
 
   return (
-    <div className="grid h-[calc(100dvh-9rem)] min-h-[520px] overflow-hidden rounded-2xl border bg-card lg:grid-cols-[290px_1fr]">
+    <div className="grid h-[calc(100dvh-7rem)] min-h-[520px] overflow-hidden rounded-2xl border bg-card lg:grid-cols-[290px_1fr]">
       <aside className="border-b bg-slate-50/80 p-4 lg:border-b-0 lg:border-r">
         <Button asChild variant="outline" className="w-full">
           <Link href={`/workspace/chat/${bot.id}`}>
@@ -262,7 +262,7 @@ export function KnowledgeChat({
         </form>
         <nav
           aria-label="Conversation history"
-          className="mt-4 max-h-64 space-y-2 overflow-y-auto lg:max-h-[calc(100dvh-17rem)]"
+          className="mt-4 max-h-64 space-y-2 overflow-y-auto lg:max-h-[calc(100dvh-15rem)]"
         >
           {visibleConversations.map((conversation) => (
             <div
