@@ -599,7 +599,7 @@ export function UniversalChat({
                   </p>
                 ) : null}
                 <div
-                  className={`rounded-2xl px-4 py-3 text-sm leading-6 ${item.role === "USER" ? "bg-primary text-primary-foreground whitespace-pre-wrap" : "mt-2 border bg-white"}`}
+                  className={`rounded-2xl px-4 py-3 text-sm leading-6 ${item.role === "USER" ? "bg-primary text-primary-foreground break-words whitespace-pre-wrap" : "mt-2 border bg-white"}`}
                 >
                   {item.role === "USER" ? (
                     item.content

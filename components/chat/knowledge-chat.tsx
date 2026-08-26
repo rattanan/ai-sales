@@ -408,7 +408,9 @@ export function KnowledgeChat({
                 }
               >
                 {message.role === "USER" ? (
-                  <p className="whitespace-pre-wrap">{message.content}</p>
+                  <p className="break-words whitespace-pre-wrap">
+                    {message.content}
+                  </p>
                 ) : (
                   <MarkdownMessage
                     content={message.content}

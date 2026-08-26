@@ -94,4 +94,17 @@ describe("MarkdownMessage", () => {
 
     expect(container.querySelector(".katex")).toBeTruthy();
   });
+
+  it("breaks a long unbroken string instead of overflowing the bubble", () => {
+    const { container } = render(
+      <MarkdownMessage
+        content="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTam9OCjhZ0K4lL_3m5HkrAOcJN24PtbEUhdkNjUWMyjA77bw68GVs22EemJdK4lZcmNewN1dG6jJw"
+        citations={[]}
+      />,
+    );
+
+    // A pasted URL has no break opportunity, so without this it runs straight
+    // out past the right edge of the message.
+    expect(container.firstElementChild?.className).toContain("break-words");
+  });
 });

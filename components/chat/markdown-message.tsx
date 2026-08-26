@@ -270,7 +270,7 @@ export function MarkdownMessage({
   );
 
   return (
-    <div className="text-sm leading-6 [&_.katex-display]:overflow-x-auto [&_.katex-display]:py-1">
+    <div className="text-sm leading-6 break-words [&_.katex-display]:overflow-x-auto [&_.katex-display]:py-1">
       <Markdown
         remarkPlugins={REMARK_PLUGINS}
         rehypePlugins={REHYPE_PLUGINS}
