@@ -464,7 +464,7 @@ export function KnowledgeChat({
                   <article
                     className={
                       message.role === "USER"
-                        ? "rounded-2xl rounded-br-sm bg-slate-900 px-4 py-3 text-sm leading-6 text-white"
+                        ? "ml-auto w-fit rounded-2xl rounded-br-sm bg-slate-900 px-4 py-3 text-sm leading-6 text-white"
                         : "rounded-2xl rounded-bl-sm border bg-white px-5 py-4 text-sm leading-7 shadow-sm"
                     }
                   >

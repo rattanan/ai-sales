@@ -459,4 +459,36 @@ describe("universal chat navigation", () => {
       documentIds: ["document-q1"],
     });
   });
+  it("sizes a user bubble to its own text and leaves the answer full width", () => {
+    render(
+      <UniversalChat
+        bots={[]}
+        sources={[]}
+        conversations={[]}
+        initialMessages={[
+          {
+            id: "user-1",
+            role: "USER",
+            content: "สรุปให้หน่อย",
+            citations: [],
+          },
+          {
+            id: "assistant-1",
+            role: "ASSISTANT",
+            content: "Here is the summary",
+            citations: [],
+          },
+        ]}
+        historyQuery=""
+      />,
+    );
+
+    // A short question stretched across the whole column read as an empty banner.
+    const question = screen.getByText("สรุปให้หน่อย");
+    expect(question.className).toContain("w-fit");
+    const answer = screen
+      .getByText("Here is the summary")
+      .closest("div.rounded-2xl");
+    expect(answer?.className).not.toContain("w-fit");
+  });
 });
