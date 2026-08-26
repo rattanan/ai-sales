@@ -3,6 +3,7 @@ import { requireBotUse } from "@/server/auth/knowledge-access";
 import { authorizeResource } from "@/server/auth/resource-authorization";
 import { db } from "@/server/db";
 import { embedKnowledgeQuery } from "@/server/services/embedding-service";
+import { logger } from "@/server/services/logger";
 
 type RetrievalRow = {
   chunkId: string;
@@ -15,6 +16,8 @@ type RetrievalRow = {
   mimeType: string;
   vectorScore: number;
   keywordScore: number;
+  /** Absent on evidence a tool synthesised rather than retrieved from a chunk. */
+  trigramScore?: number;
 };
 
 export type RetrievedKnowledge = RetrievalRow & { score: number };
@@ -46,13 +49,57 @@ function queryTerms(query: string) {
   );
 }
 
-function lexicalOverlap(query: string, content: string) {
+export function lexicalOverlap(query: string, content: string) {
   const terms = queryTerms(query);
   if (!terms.size) return 0;
   const normalized = content.toLocaleLowerCase();
   return (
     [...terms].filter((term) => normalized.includes(term)).length / terms.size
   );
+}
+
+/**
+ * Lowest trigram word similarity that admits a chunk on its own. Measured
+ * against the indexed corpus: Thai queries whose wording appears in a document
+ * scored 0.39-1.00, while a query about an unrelated subject peaked at 0.20.
+ */
+const TRIGRAM_FLOOR = 0.3;
+
+/**
+ * Blends the three retrieval signals and decides whether a chunk is worth
+ * showing at all.
+ *
+ * `lexicalOverlap` splits on anything that is not a letter or digit, which for
+ * Thai includes its tone marks and vowel signs: a query breaks into fragments
+ * that match by accident as often as by meaning, and never at all when the
+ * wording differs slightly. Trigram word similarity measures the same lexical
+ * closeness without needing word boundaries. Taking the stronger of the two
+ * keeps the existing weights untouched — where words are actually separated,
+ * overlap still wins.
+ */
+export function scoreRetrievedChunk(
+  query: string,
+  content: string,
+  row: { vectorScore: number; keywordScore: number; trigramScore?: number },
+) {
+  const trigramScore = Math.max(
+    0,
+    Math.min(1, Number(row.trigramScore ?? 0) || 0),
+  );
+  const lexical = Math.max(lexicalOverlap(query, content), trigramScore);
+  const keywordScore = Math.max(0, Number(row.keywordScore) || 0);
+  const score =
+    Math.max(0, Number(row.vectorScore) || 0) * 0.65 +
+    keywordScore * 0.15 +
+    lexical * 0.2;
+  return {
+    trigramScore,
+    score,
+    // The trigram clause is what keeps a Thai question answerable while the
+    // embedding provider is down: on its own the blended score of a chunk that
+    // only matched on trigrams lands under the 0.08 floor.
+    admitted: score > 0.08 || keywordScore > 0 || trigramScore >= TRIGRAM_FLOOR,
+  };
 }
 
 export async function retrieveBotContext(
@@ -131,8 +178,16 @@ export async function retrieveBotContext(
         bot.providerConfig?.providerId,
       )
     ).embedding;
-  } catch {
-    // Keyword retrieval remains available during an embedding-provider outage.
+  } catch (error) {
+    // Keyword retrieval remains available during an embedding-provider outage,
+    // but it is markedly worse, so the drop must not be silent: without this the
+    // only symptom is answers quietly getting thinner.
+    logger.warn("Retrieval fell back to keyword search", {
+      organizationId: context.organizationId,
+      botId,
+      errorType: error instanceof Error ? error.name : typeof error,
+      message: error instanceof Error ? error.message.slice(0, 200) : undefined,
+    });
   }
   const vectorAclSql = `
     FROM "DocumentChunk" c
@@ -164,6 +219,14 @@ export async function retrieveBotContext(
     .replaceAll("$7", "$5")
     .replaceAll("$8", "$6")
     .replaceAll("$9", "$7");
+  // `to_tsvector('simple', ...)` splits on whitespace, and Thai is written
+  // without it, so a Thai sentence becomes one token that matches nothing:
+  // measured on the indexed corpus, every Thai query scored zero on the keyword
+  // path while Latin ones scored normally. Trigram word similarity gives the
+  // lexical signal a form that works for both, which matters most when the
+  // embedding provider is down and this is the only signal left. It scans every
+  // row, like `ts_rank_cd` above it already does, so it adds no new cliff.
+  //
   // pgvector HNSW supports up to 2,000 dimensions. Larger embeddings retain
   // the generic vector expression and therefore use the exact-scan path.
   const indexedDimensions = new Set([384, 768, 1024, 1536]);
@@ -178,11 +241,12 @@ export async function retrieveBotContext(
                 s.id AS "sourceId",
                 CASE WHEN c."embeddingDimension" = $5
                      THEN 1 - (${vectorDistance}) ELSE 0 END AS "vectorScore",
-                ts_rank_cd(to_tsvector('simple', c.content), plainto_tsquery('simple', $6)) AS "keywordScore"
+                ts_rank_cd(to_tsvector('simple', c.content), plainto_tsquery('simple', $6)) AS "keywordScore",
+                word_similarity($6, c.content) AS "trigramScore"
          ${vectorAclSql}
          ORDER BY (CASE WHEN c."embeddingDimension" = $5
                         THEN 1 - (${vectorDistance}) ELSE 0 END) DESC,
-                  "keywordScore" DESC
+                  "keywordScore" DESC, "trigramScore" DESC
          LIMIT 40`,
         botId,
         context.organizationId,
@@ -199,9 +263,13 @@ export async function retrieveBotContext(
                 d.id AS "documentId", d.name AS "documentName", d."mimeType",
                 s.id AS "sourceId",
                 0::float AS "vectorScore",
-                ts_rank_cd(to_tsvector('simple', c.content), plainto_tsquery('simple', $4)) AS "keywordScore"
+                ts_rank_cd(to_tsvector('simple', c.content), plainto_tsquery('simple', $4)) AS "keywordScore",
+                word_similarity($4, c.content) AS "trigramScore"
          ${keywordAclSql}
-         ORDER BY "keywordScore" DESC, c."createdAt" DESC
+         ORDER BY GREATEST(
+                    ts_rank_cd(to_tsvector('simple', c.content), plainto_tsquery('simple', $4)),
+                    word_similarity($4, c.content)
+                  ) DESC, c."createdAt" DESC
          LIMIT 80`,
         botId,
         context.organizationId,
@@ -215,20 +283,12 @@ export async function retrieveBotContext(
   const candidates = rows
     .map((row) => {
       const content = sanitizeRetrievedContent(row.content);
-      const overlap = lexicalOverlap(query, content);
-      return {
-        ...row,
-        content,
-        score:
-          Math.max(0, Number(row.vectorScore)) * 0.65 +
-          Math.max(0, Number(row.keywordScore)) * 0.15 +
-          overlap * 0.2,
-      };
+      return { ...row, content, ...scoreRetrievedChunk(query, content, row) };
     })
     .filter((row) => {
       if (!row.content || seen.has(row.contentHash)) return false;
       seen.add(row.contentHash);
-      return row.score > 0.08 || row.keywordScore > 0;
+      return row.admitted;
     })
     .sort((left, right) => right.score - left.score)
     .slice(0, 20);

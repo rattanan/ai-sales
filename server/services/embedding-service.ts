@@ -14,7 +14,53 @@ import {
 import { fetchAiWithRetry } from "@/packages/ai/fetch-with-retry";
 import { providerHttpError } from "@/packages/ai/provider-http-error";
 
+/**
+ * How long an organization's embedding provider stays circuit-broken after a
+ * failure. Retrieval falls back to keyword search when embedding fails, but it
+ * re-attempts on every call — and an agentic turn can search five times, so
+ * one unreachable provider used to cost five full timeouts and blow the
+ * turn's wall-clock budget. Short enough that a recovered provider is picked
+ * up within a turn or two.
+ */
+const EMBEDDING_COOLDOWN_MS = 15_000;
+const embeddingFailedAt = new Map<string, number>();
+
+export class EmbeddingProviderCooldownError extends Error {
+  constructor() {
+    super("The embedding provider failed recently and is cooling down");
+    this.name = "EmbeddingProviderCooldownError";
+  }
+}
+
+export function resetEmbeddingCooldown(organizationId?: string) {
+  if (organizationId) embeddingFailedAt.delete(organizationId);
+  else embeddingFailedAt.clear();
+}
+
 export async function embedKnowledgeQuery(
+  organizationId: string,
+  input: string,
+  providerId?: string | null,
+) {
+  const failedAt = embeddingFailedAt.get(organizationId);
+  if (failedAt !== undefined) {
+    if (Date.now() - failedAt < EMBEDDING_COOLDOWN_MS)
+      throw new EmbeddingProviderCooldownError();
+    embeddingFailedAt.delete(organizationId);
+  }
+  try {
+    return await embedKnowledgeQueryUncached(
+      organizationId,
+      input,
+      providerId,
+    );
+  } catch (error) {
+    embeddingFailedAt.set(organizationId, Date.now());
+    throw error;
+  }
+}
+
+async function embedKnowledgeQueryUncached(
   organizationId: string,
   input: string,
   providerId?: string | null,
