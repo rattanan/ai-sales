@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { UniversalChat } from "@/components/chat/universal-chat";
 import { chatAttachmentNames } from "@/lib/chat-attachments";
@@ -7,6 +8,29 @@ import { requireBotUse } from "@/server/auth/knowledge-access";
 import { db } from "@/server/db";
 import { authorizeResource } from "@/server/auth/resource-authorization";
 import { env } from "@/schemas/env";
+import { isThinkLevel, THINK_LEVEL_COOKIE } from "@/lib/chat-preferences";
+
+/**
+ * Traces predating the agent loop stored no tool name, so the tool group is
+ * used as the label rather than rendering an empty step.
+ */
+function traceToolName(maskedInput: unknown, toolType: string) {
+  if (
+    maskedInput &&
+    typeof maskedInput === "object" &&
+    "toolName" in maskedInput
+  ) {
+    const name = (maskedInput as { toolName: unknown }).toolName;
+    if (typeof name === "string" && name) return name;
+  }
+  return toolType.toLowerCase();
+}
+
+function traceSummary(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const summary = (value as { summary?: unknown }).summary;
+  return typeof summary === "string" ? summary : null;
+}
 
 function citationMetadata(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -37,6 +61,7 @@ export default async function ChatIndexPage({
       bots.push(bot);
     } catch {}
   const historyQuery = query.q?.trim().slice(0, 120) ?? "";
+  const savedThinkLevel = (await cookies()).get(THINK_LEVEL_COOKIE)?.value;
   const conversations = await db.conversation.findMany({
     where: {
       organizationId: context.organizationId,
@@ -65,7 +90,10 @@ export default async function ChatIndexPage({
             where: { role: { in: ["USER", "ASSISTANT"] } },
             include: {
               citations: { orderBy: { rank: "asc" } },
-              toolTraces: { orderBy: { createdAt: "desc" }, take: 1 },
+              toolTraces: {
+                orderBy: [{ stepIndex: "asc" }, { createdAt: "asc" }],
+              },
+              reasoningSteps: { orderBy: { stepIndex: "asc" } },
               feedback: { select: { rating: true } },
               ntopActions: { orderBy: { createdAt: "desc" }, take: 1 },
             },
@@ -148,12 +176,21 @@ export default async function ChatIndexPage({
           quote: citation.quote,
           metadata: citationMetadata(citation.metadata),
         })),
-        toolActivity: message.toolTraces[0]
-          ? {
-              type: message.toolTraces[0].toolType,
-              status: message.toolTraces[0].status,
-            }
-          : undefined,
+        reasoningTimeline: message.reasoningSteps.map((round) => ({
+          step: round.stepIndex,
+          text: round.text,
+          truncated: round.truncated,
+        })),
+        toolTimeline: message.toolTraces.map((trace, index) => ({
+          step: trace.stepIndex ?? index,
+          toolName: traceToolName(trace.maskedInput, trace.toolType),
+          type: trace.toolType,
+          status: trace.status,
+          durationMs: trace.durationMs ?? undefined,
+          errorCode: trace.errorCode,
+          arguments: citationMetadata(trace.maskedInput),
+          summary: traceSummary(trace.maskedOutput),
+        })),
         rating: message.feedback?.rating,
         suggestedAction: message.ntopActions[0]
           ? {
@@ -168,6 +205,9 @@ export default async function ChatIndexPage({
           : undefined,
       }))}
       historyQuery={historyQuery}
+      initialThinkLevel={
+        isThinkLevel(savedThinkLevel) ? savedThinkLevel : "DEFAULT"
+      }
       webSearchAvailable={Boolean(
         env().WEB_SEARCH_ENABLED && env().WEB_SEARCH_API_KEY,
       )}

@@ -1,11 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
-  Bot,
-  ChevronRight,
+  AgentTrace,
+  type AgentTraceEntry,
+} from "@/components/chat/agent-trace";
+import { CitationSources } from "@/components/chat/citation-sources";
+import { MarkdownMessage } from "@/components/chat/markdown-message";
+import {
+  applyStepEvent,
+  mergeTrace,
+  messageTrace,
+  type ReasoningRow,
+} from "@/lib/agent-trace";
+import {
+  Brain,
   Database,
   Download,
   FileText,
@@ -15,10 +25,18 @@ import {
   Library,
   PlugZap,
   Search,
-  Send,
   Sparkles,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import {
+  PromptInput,
+  PromptInputActions,
+  PromptInputButton,
+  PromptInputSubmit,
+  PromptInputTextarea,
+  PromptInputToolbar,
+} from "@/components/ui/prompt-input";
+import { SelectMenu, type SelectMenuOption } from "@/components/ui/select-menu";
+import { rememberThinkLevel, type ThinkLevel } from "@/lib/chat-preferences";
 import { MessageFeedbackButtons } from "@/components/chat/message-feedback-buttons";
 import { readChatStream } from "@/lib/chat-stream";
 import { NtopActionCard } from "@/components/chat/ntop-action-card";
@@ -45,10 +63,24 @@ type Message = {
     quote: string;
     metadata: Record<string, unknown> | null;
   }>;
-  toolActivity?: { type: string; status: string };
+  toolTimeline?: ToolStep[];
+  reasoningTimeline?: ReasoningRow[];
+  /** Richer trace kept for this session: the uncapped reasoning text. */
+  trace?: AgentTraceEntry[];
   rating?: number | null;
   suggestedAction?: NtopSuggestedAction;
   attachments?: string[];
+};
+
+type ToolStep = {
+  step: number;
+  toolName: string;
+  type: string;
+  status: string;
+  durationMs?: number;
+  errorCode?: string | null;
+  arguments?: Record<string, unknown> | null;
+  summary?: string | null;
 };
 
 type ChatTurnResult = {
@@ -76,6 +108,55 @@ type Mode =
   | "GENERATE_REPORT"
   | "QUERY_LIVE_DATA";
 
+const SCOPE_OPTIONS: Array<SelectMenuOption<Scope>> = [
+  { value: "SMART", label: "Smart routing", hint: "Assistant picks the tools" },
+  {
+    value: "ALL_ACCESSIBLE",
+    label: "All accessible",
+    hint: "Every source you may read",
+  },
+  {
+    value: "SPECIFIC_BOT",
+    label: "Specific bot",
+    hint: "One bot's assigned knowledge",
+  },
+  {
+    value: "SPECIFIC_SOURCES",
+    label: "Specific sources",
+    hint: "Only the files you choose",
+  },
+  { value: "DOCUMENTS", label: "Documents", hint: "Knowledge base files only" },
+  { value: "DATABASES", label: "Databases", hint: "Connected databases only" },
+  { value: "API_TOOLS", label: "API tools", hint: "Configured API tools only" },
+  {
+    value: "CONVERSATION_HISTORY",
+    label: "Conversation history",
+    hint: "Past conversations only",
+  },
+  {
+    value: "BUSINESS_INSIGHT",
+    label: "Business insight",
+    hint: "Saved analysis results only",
+  },
+];
+
+const MODE_OPTIONS: Array<SelectMenuOption<Mode>> = [
+  { value: "AUTO", label: "Auto" },
+  { value: "ASK", label: "Ask" },
+  { value: "SEARCH", label: "Search" },
+  { value: "ANALYZE", label: "Analyze" },
+  { value: "SUMMARIZE", label: "Summarize" },
+  { value: "GENERATE_REPORT", label: "Generate report" },
+  { value: "QUERY_LIVE_DATA", label: "Query live data" },
+];
+
+const THINK_LEVEL_OPTIONS: Array<SelectMenuOption<ThinkLevel>> = [
+  { value: "DEFAULT", label: "ตามค่าบอต", hint: "ใช้ระดับที่ตั้งไว้ในบอต" },
+  { value: "low", label: "คิดเร็ว", hint: "ตอบไวที่สุด" },
+  { value: "medium", label: "คิดกลาง" },
+  { value: "high", label: "คิดลึก", hint: "ละเอียดกว่า แต่ช้ากว่ามาก" },
+];
+
 export function UniversalChat({
   bots,
   sources,
@@ -84,6 +165,7 @@ export function UniversalChat({
   initialMessages,
   historyQuery,
   webSearchAvailable = false,
+  initialThinkLevel = "DEFAULT",
 }: {
   bots: Array<{ id: string; name: string }>;
   sources: ChatKnowledgeSource[];
@@ -97,10 +179,20 @@ export function UniversalChat({
   initialMessages: Message[];
   historyQuery: string;
   webSearchAvailable?: boolean;
+  /** Read from the cookie server-side, so the pill renders it on first paint. */
+  initialThinkLevel?: ThinkLevel;
 }) {
-  const router = useRouter();
+  const [liveTrace, setLiveTrace] = useState<AgentTraceEntry[]>([]);
+  /**
+   * The same trace, readable from inside `send`. `send` is async, so its
+   * closure holds the `liveTrace` from the render that created it — always the
+   * empty array from before the turn started, which silently dropped the
+   * reasoning when the turn was assembled.
+   */
+  const liveTraceRef = useRef<AgentTraceEntry[]>([]);
   const [scope, setScope] = useState<Scope>("SMART");
   const [mode, setMode] = useState<Mode>("AUTO");
+  const [thinkLevel, setThinkLevel] = useState<ThinkLevel>(initialThinkLevel);
   const [botId, setBotId] = useState("");
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
   const [sourcePanelOpen, setSourcePanelOpen] = useState(false);
@@ -117,6 +209,13 @@ export function UniversalChat({
   const selectedDocuments = useMemo(
     () => new Set(selectedDocumentIds),
     [selectedDocumentIds],
+  );
+  const botOptions = useMemo<Array<SelectMenuOption<string>>>(
+    () => [
+      { value: "", label: "Select bot" },
+      ...bots.map((bot) => ({ value: bot.id, label: bot.name })),
+    ],
+    [bots],
   );
   const selectedSourceScope = useMemo(
     () => selectedChatSourceScope(sources, selectedDocuments),
@@ -146,6 +245,11 @@ export function UniversalChat({
     setError("");
     setWebSearch(false);
     setAttachedFiles([]);
+    setLiveTrace([]);
+    liveTraceRef.current = [];
+    // Drop the conversation from the URL without a navigation, matching how a
+    // finished turn updates it.
+    window.history.replaceState(null, "", "/workspace/chat");
   }
 
   async function send() {
@@ -180,6 +284,8 @@ export function UniversalChat({
     setAttachedFiles([]);
     setPending(true);
     setError("");
+    setLiveTrace([]);
+    liveTraceRef.current = [];
     try {
       const requestPayload = {
         conversationId,
@@ -190,6 +296,7 @@ export function UniversalChat({
         sourceIds: showSources ? selectedSourceScope.sourceIds : [],
         documentIds: showSources ? selectedSourceScope.documentIds : [],
         webSearch,
+        ...(thinkLevel === "DEFAULT" ? {} : { reasoningEffort: thinkLevel }),
       };
       const formData = new FormData();
       formData.set("payload", JSON.stringify(requestPayload));
@@ -204,6 +311,14 @@ export function UniversalChat({
             }),
       });
       const payload = await readChatStream<ChatTurnResult>(response, {
+        onStepEvent(event) {
+          // The ref is the source of truth and is advanced synchronously:
+          // a state updater function runs during React's render phase, not at
+          // call time, so assigning the ref inside one left it empty when the
+          // finished turn was assembled.
+          liveTraceRef.current = applyStepEvent(liveTraceRef.current, event);
+          setLiveTrace(liveTraceRef.current);
+        },
         onToken(token) {
           setStreaming(true);
           setMessages((items) =>
@@ -217,16 +332,30 @@ export function UniversalChat({
       });
       const { conversation, userMessage, assistantMessage } = payload;
       setConversationId(conversation.id);
+      // Read the trace here, not inside the updater below. React runs a state
+      // updater during the render phase, by which time `finally` has already
+      // cleared the ref — which is how the reasoning kept vanishing the moment
+      // the answer appeared.
+      const completedTrace = mergeTrace(
+        liveTraceRef.current,
+        assistantMessage.toolTimeline ?? [],
+      );
       setMessages((items) => [
         ...items.filter(
           (item) => item.id !== optimistic.id && item.id !== streamingId,
         ),
         { ...userMessage, role: "USER", citations: [] },
-        assistantMessage,
+        { ...assistantMessage, trace: completedTrace },
       ]);
-      router.replace(
+      // The URL is updated without a router navigation on purpose. The chat
+      // page is keyed by conversation id, so navigating here would remount
+      // this component and replace local state with what the server has —
+      // discarding the reasoning trace, which is never persisted, and the
+      // answer itself whenever the turn could not be saved.
+      window.history.replaceState(
+        null,
+        "",
         `/workspace/chat?conversation=${encodeURIComponent(conversation.id)}`,
-        { scroll: false },
       );
     } catch (reason) {
       setAttachedFiles(filesToSend);
@@ -243,6 +372,8 @@ export function UniversalChat({
     } finally {
       setPending(false);
       setStreaming(false);
+      setLiveTrace([]);
+      liveTraceRef.current = [];
     }
   }
 
@@ -305,95 +436,48 @@ export function UniversalChat({
             <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
               ACL enforced
             </span>
-            <div className="ml-auto flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                aria-controls="chat-source-panel"
-                aria-expanded={sourcePanelOpen}
-                onClick={() => setSourcePanelOpen((open) => !open)}
-                className={
-                  showSources
-                    ? "border-amber-400 bg-amber-50 text-amber-900"
-                    : ""
-                }
+            {conversationId ? (
+              <a
+                href={`/api/universal-chat/export?conversation=${conversationId}`}
+                className="ml-auto inline-flex min-h-11 items-center gap-2 rounded-lg border px-3 text-sm font-medium"
               >
-                <Library size={16} />
-                Sources
-                {selectedDocumentIds.length ? (
-                  <span className="rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
-                    {selectedDocumentIds.length}
-                  </span>
-                ) : null}
-              </Button>
-              {conversationId ? (
-                <a
-                  href={`/api/universal-chat/export?conversation=${conversationId}`}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-lg border px-3 text-sm font-medium"
-                >
-                  <Download size={16} /> Export
-                </a>
-              ) : null}
-            </div>
+                <Download size={16} /> Export
+              </a>
+            ) : null}
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <label className="text-sm">
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div className="text-sm">
               <span className="mb-1 block font-medium">Scope</span>
-              <select
+              <SelectMenu
+                label="Scope"
                 value={scope}
-                onChange={(event) => {
-                  const nextScope = event.target.value as Scope;
+                options={SCOPE_OPTIONS}
+                onChange={(nextScope) => {
                   setScope(nextScope);
                   if (nextScope === "SPECIFIC_SOURCES")
                     setSourcePanelOpen(true);
                 }}
-                className="min-h-11 w-full rounded-lg border bg-background px-3"
-              >
-                <option value="SMART">Smart routing</option>
-                <option value="ALL_ACCESSIBLE">All accessible</option>
-                <option value="SPECIFIC_BOT">Specific bot</option>
-                <option value="SPECIFIC_SOURCES">Specific sources</option>
-                <option value="DOCUMENTS">Documents</option>
-                <option value="DATABASES">Databases</option>
-                <option value="API_TOOLS">API tools</option>
-                <option value="CONVERSATION_HISTORY">
-                  Conversation history
-                </option>
-                <option value="BUSINESS_INSIGHT">Business insight</option>
-              </select>
-            </label>
-            <label className="text-sm">
+              />
+            </div>
+            <div className="text-sm">
               <span className="mb-1 block font-medium">Mode</span>
-              <select
+              <SelectMenu
+                label="Mode"
                 value={mode}
-                onChange={(event) => setMode(event.target.value as Mode)}
-                className="min-h-11 w-full rounded-lg border bg-background px-3"
-              >
-                <option value="AUTO">Auto</option>
-                <option value="ASK">Ask</option>
-                <option value="SEARCH">Search</option>
-                <option value="ANALYZE">Analyze</option>
-                <option value="SUMMARIZE">Summarize</option>
-                <option value="GENERATE_REPORT">Generate report</option>
-                <option value="QUERY_LIVE_DATA">Query live data</option>
-              </select>
-            </label>
+                options={MODE_OPTIONS}
+                onChange={setMode}
+              />
+            </div>
             {showBot ? (
-              <label className="text-sm md:col-span-2">
+              <div className="text-sm md:col-span-2">
                 <span className="mb-1 block font-medium">Bot</span>
-                <select
+                <SelectMenu
+                  label="Bot"
                   value={botId}
-                  onChange={(event) => setBotId(event.target.value)}
-                  className="min-h-11 w-full rounded-lg border bg-background px-3"
-                >
-                  <option value="">Select bot</option>
-                  {bots.map((bot) => (
-                    <option key={bot.id} value={bot.id}>
-                      {bot.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  options={botOptions}
+                  onChange={setBotId}
+                />
+              </div>
             ) : null}
           </div>
           {showSources ? (
@@ -450,79 +534,75 @@ export function UniversalChat({
               </div>
             </div>
           ) : null}
-          {messages.map((item) => (
-            <article
-              key={item.id}
-              className={`max-w-3xl ${item.role === "USER" ? "ml-auto" : "mr-auto"}`}
-            >
-              <div
-                className={`rounded-2xl px-4 py-3 text-sm leading-6 whitespace-pre-wrap ${item.role === "USER" ? "bg-primary text-primary-foreground" : "border bg-white"}`}
+          {messages.map((item) => {
+            const trace = messageTrace(item, liveTrace);
+            const streaming = item.id.startsWith("streaming-");
+            return (
+              <article
+                key={item.id}
+                className={`max-w-3xl ${item.role === "USER" ? "ml-auto" : "mr-auto"}`}
               >
-                {item.content}
-                {item.id.startsWith("streaming-") ? (
-                  <span
-                    className="ml-0.5 inline-block animate-pulse text-primary motion-reduce:animate-none"
-                    aria-hidden="true"
-                  >
-                    ▍
-                  </span>
+                {/* The trace comes first because it happened first: the turn
+                  reads top to bottom as thinking, then acting, then answering,
+                  and nothing shifts position when the answer arrives. */}
+                {trace.length ? (
+                  <AgentTrace entries={trace} live={streaming} />
                 ) : null}
-                <ChatMessageAttachments names={item.attachments} />
-              </div>
-              {item.toolActivity ? (
-                <p className="mt-2 inline-flex rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
-                  Tool: {item.toolActivity.type.replaceAll("_", " ")} ·{" "}
-                  {item.toolActivity.status}
-                </p>
-              ) : null}
-              {item.suggestedAction ? (
-                <NtopActionCard action={item.suggestedAction} />
-              ) : null}
-              {item.citations.length ? (
-                <details className="mt-2 rounded-lg border bg-white px-3 py-2 text-sm">
-                  <summary className="cursor-pointer font-medium">
-                    {item.citations.length} citation(s)
-                  </summary>
-                  <ol className="mt-2 space-y-2">
-                    {item.citations.map((citation) => (
-                      <li key={citation.id} className="rounded bg-muted p-2">
-                        <span className="font-medium">[{citation.rank}]</span>{" "}
-                        {citation.quote}
-                        {typeof citation.metadata?.url === "string" ? (
-                          <a
-                            href={citation.metadata.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="mt-2 flex items-center gap-1 font-medium text-primary underline"
-                          >
-                            <Globe2 size={13} />
-                            {typeof citation.metadata.title === "string"
-                              ? citation.metadata.title
-                              : "Open web source"}
-                          </a>
-                        ) : null}
-                      </li>
-                    ))}
-                  </ol>
-                </details>
-              ) : null}
-              {item.errorCode ? (
-                <p className="mt-1 text-xs text-amber-700">
-                  Status: {item.errorCode}
-                </p>
-              ) : null}
-              {item.role === "ASSISTANT" &&
-              !item.id.startsWith("pending-") &&
-              !item.id.startsWith("streaming-") ? (
-                <div className="mt-2">
-                  <MessageFeedbackButtons
-                    messageId={item.id}
-                    initialRating={item.rating}
-                  />
+                {item.id.startsWith("unsaved-") ? (
+                  <p
+                    role="status"
+                    className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800"
+                  >
+                    คำตอบนี้ส่งถึงคุณแล้วแต่บันทึกลงประวัติไม่สำเร็จ
+                    หากรีเฟรชหน้าจะหายไป
+                  </p>
+                ) : null}
+                <div
+                  className={`rounded-2xl px-4 py-3 text-sm leading-6 ${item.role === "USER" ? "bg-primary text-primary-foreground whitespace-pre-wrap" : "mt-2 border bg-white"}`}
+                >
+                  {item.role === "USER" ? (
+                    item.content
+                  ) : (
+                    <MarkdownMessage
+                      content={item.content}
+                      citations={item.citations}
+                    />
+                  )}
+                  {streaming ? (
+                    <span
+                      className="ml-0.5 inline-block animate-pulse text-primary motion-reduce:animate-none"
+                      aria-hidden="true"
+                    >
+                      ▍
+                    </span>
+                  ) : null}
+                  <ChatMessageAttachments names={item.attachments} />
                 </div>
-              ) : null}
-            </article>
-          ))}
+                {item.suggestedAction ? (
+                  <NtopActionCard action={item.suggestedAction} />
+                ) : null}
+                {item.citations.length ? (
+                  <CitationSources citations={item.citations} />
+                ) : null}
+                {item.errorCode ? (
+                  <p className="mt-1 text-xs text-amber-700">
+                    Status: {item.errorCode}
+                  </p>
+                ) : null}
+                {item.role === "ASSISTANT" &&
+                !item.id.startsWith("pending-") &&
+                !streaming &&
+                !item.id.startsWith("unsaved-") ? (
+                  <div className="mt-2">
+                    <MessageFeedbackButtons
+                      messageId={item.id}
+                      initialRating={item.rating}
+                    />
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
           {pending ? (
             <p
               className="flex items-center gap-2 text-sm text-muted-foreground"
@@ -538,76 +618,89 @@ export function UniversalChat({
             </p>
           ) : null}
         </div>
-        <div className="border-t p-4">
+        <div className="border-t bg-card p-4">
           <p role="alert" className="mb-2 text-sm text-destructive">
             {error}
           </p>
-          {webSearchAvailable ? (
-            <div className="mb-2 flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                aria-pressed={webSearch}
-                disabled={pending}
-                title="Search the live web for this message"
-                onClick={() => setWebSearch((enabled) => !enabled)}
-                className={
-                  webSearch ? "border-blue-500 bg-blue-50 text-blue-700" : ""
-                }
-              >
-                <Globe2 size={16} /> Web search
-              </Button>
-              {webSearch ? (
-                <span className="text-xs text-blue-700">
-                  Uses live web sources while enabled
-                </span>
-              ) : null}
-            </div>
-          ) : null}
-          <div className="space-y-2">
-            <div className="flex items-end gap-2">
-              <ChatAttachmentPicker
-                files={attachedFiles}
-                disabled={pending}
-                onChange={setAttachedFiles}
-                onError={setError}
-              />
-              <textarea
-                aria-label="Message AI-Sales"
-                value={message}
-                onChange={(event) => setMessage(event.target.value)}
-                onKeyDown={(event) => {
-                  if (
-                    (event.metaKey || event.ctrlKey) &&
-                    event.key === "Enter"
-                  ) {
-                    event.preventDefault();
-                    void send();
-                  }
-                }}
-                placeholder="Ask AI-Sales…"
-                rows={2}
-                className="min-h-12 flex-1 resize-none rounded-xl border bg-background p-3 text-sm"
-              />
-              <Button
-                type="button"
-                onClick={() => void send()}
-                disabled={pending || (!message.trim() && !attachedFiles.length)}
-                aria-label="Send message"
-              >
-                <Send size={17} />
-                <span className="hidden sm:inline">Send</span>
-              </Button>
-            </div>
-            <ChatSelectedAttachments
-              files={attachedFiles}
-              disabled={pending}
-              onChange={setAttachedFiles}
+          <PromptInput
+            value={message}
+            onValueChange={setMessage}
+            onSubmit={() => void send()}
+            loading={pending}
+          >
+            <PromptInputTextarea
+              aria-label="Message AI-Sales"
+              placeholder="Ask AI-Sales…"
             />
-          </div>
-          <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
-            <Bot size={13} /> Attach up to 3 supported documents. Ctrl/Cmd +
-            Enter to send. <ChevronRight size={13} />{" "}
+            {attachedFiles.length ? (
+              <div className="px-1 pb-1">
+                <ChatSelectedAttachments
+                  files={attachedFiles}
+                  disabled={pending}
+                  onChange={setAttachedFiles}
+                />
+              </div>
+            ) : null}
+            <PromptInputToolbar>
+              <PromptInputActions>
+                <ChatAttachmentPicker
+                  files={attachedFiles}
+                  disabled={pending}
+                  onChange={setAttachedFiles}
+                  onError={setError}
+                  className="size-11 min-h-11 rounded-full"
+                />
+                {webSearchAvailable ? (
+                  <PromptInputButton
+                    active={webSearch}
+                    aria-pressed={webSearch}
+                    disabled={pending}
+                    title="Search the live web for this message"
+                    onClick={() => setWebSearch((enabled) => !enabled)}
+                  >
+                    <Globe2 size={17} aria-hidden="true" /> Search
+                  </PromptInputButton>
+                ) : null}
+                <SelectMenu
+                  label="ระดับการคิด"
+                  value={thinkLevel}
+                  options={THINK_LEVEL_OPTIONS}
+                  onChange={(level) => {
+                    setThinkLevel(level);
+                    rememberThinkLevel(level);
+                  }}
+                  disabled={pending}
+                  variant="pill"
+                  side="top"
+                  icon={Brain}
+                />
+                <PromptInputButton
+                  active={showSources}
+                  aria-controls="chat-source-panel"
+                  aria-expanded={sourcePanelOpen}
+                  onClick={() => setSourcePanelOpen((open) => !open)}
+                >
+                  <Library size={17} aria-hidden="true" /> Sources
+                  {selectedDocumentIds.length ? (
+                    <span className="rounded-full bg-primary px-1.5 py-0.5 text-[11px] leading-none font-bold text-primary-foreground tabular-nums">
+                      {selectedDocumentIds.length}
+                    </span>
+                  ) : null}
+                </PromptInputButton>
+              </PromptInputActions>
+              <PromptInputSubmit
+                disabled={!message.trim() && !attachedFiles.length}
+              />
+            </PromptInputToolbar>
+          </PromptInput>
+          <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <span>Enter to send · Shift + Enter for a new line</span>
+            <span>Attach up to 3 supported documents.</span>
+            {webSearch ? (
+              <span className="font-medium text-foreground">
+                Live web sources are on for this message.
+              </span>
+            ) : null}
           </p>
         </div>
       </section>

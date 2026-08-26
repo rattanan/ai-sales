@@ -3,19 +3,20 @@
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  ArrowUp,
-  Bot,
-  Braces,
-  Database,
-  FileText,
-  Globe2,
-  Plus,
-  Search,
-  Trash2,
-} from "lucide-react";
+import { Bot, Globe2, Plus, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  PromptInput,
+  PromptInputActions,
+  PromptInputButton,
+  PromptInputSubmit,
+  PromptInputTextarea,
+  PromptInputToolbar,
+} from "@/components/ui/prompt-input";
+import { SelectMenu, type SelectMenuOption } from "@/components/ui/select-menu";
 import { MessageFeedbackButtons } from "@/components/chat/message-feedback-buttons";
+import { CitationSources } from "@/components/chat/citation-sources";
+import { MarkdownMessage } from "@/components/chat/markdown-message";
 import { readChatStream } from "@/lib/chat-stream";
 import { NtopActionCard } from "@/components/chat/ntop-action-card";
 import {
@@ -93,6 +94,16 @@ export function KnowledgeChat({
   const [webSearch, setWebSearch] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const optimisticSequence = useRef(0);
+  const projectOptions = useMemo<Array<SelectMenuOption<string>>>(
+    () => [
+      { value: "", label: "No project" },
+      ...projects.map((project) => ({
+        value: project.id,
+        label: project.name,
+      })),
+    ],
+    [projects],
+  );
   const visibleConversations = useMemo(
     () =>
       conversations.filter(({ title }) =>
@@ -306,21 +317,16 @@ export function KnowledgeChat({
             </p>
           </div>
           {!conversationId && projects.length > 1 ? (
-            <label className="ml-auto text-xs text-muted-foreground">
+            <div className="ml-auto text-xs text-muted-foreground">
               <span className="mb-1 block">Project context</span>
-              <select
+              <SelectMenu
+                label="Project context"
                 value={projectId}
-                onChange={(event) => setProjectId(event.target.value)}
-                className="min-h-11 rounded-lg border bg-background px-3 text-sm text-foreground"
-              >
-                <option value="">No project</option>
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+                options={projectOptions}
+                onChange={setProjectId}
+                align="end"
+              />
+            </div>
           ) : null}
         </header>
         <ol
@@ -360,161 +366,25 @@ export function KnowledgeChat({
                     : "rounded-2xl rounded-bl-sm border bg-white px-5 py-4 text-sm leading-7 shadow-sm"
                 }
               >
-                <p className="whitespace-pre-wrap">
-                  {message.content}
-                  {message.id.startsWith("streaming-") ? (
-                    <span
-                      className="ml-0.5 inline-block animate-pulse text-indigo-600 motion-reduce:animate-none"
-                      aria-hidden="true"
-                    >
-                      ▍
-                    </span>
-                  ) : null}
-                </p>
+                {message.role === "USER" ? (
+                  <p className="whitespace-pre-wrap">{message.content}</p>
+                ) : (
+                  <MarkdownMessage
+                    content={message.content}
+                    citations={message.citations}
+                  />
+                )}
+                {message.id.startsWith("streaming-") ? (
+                  <span
+                    className="ml-0.5 inline-block animate-pulse text-indigo-600 motion-reduce:animate-none"
+                    aria-hidden="true"
+                  >
+                    ▍
+                  </span>
+                ) : null}
                 <ChatMessageAttachments names={message.attachments} />
                 {message.citations.length ? (
-                  <div className="mt-4 space-y-2 border-t pt-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Sources
-                    </p>
-                    {message.citations.map((citation) => {
-                      const documentId =
-                        typeof citation.metadata?.documentId === "string"
-                          ? citation.metadata.documentId
-                          : "";
-                      const page =
-                        typeof citation.metadata?.page === "number"
-                          ? citation.metadata.page
-                          : undefined;
-                      const name =
-                        typeof citation.metadata?.documentName === "string"
-                          ? citation.metadata.documentName
-                          : "Source document";
-                      const webUrl =
-                        typeof citation.metadata?.canonicalUrl === "string"
-                          ? citation.metadata.canonicalUrl
-                          : typeof citation.metadata?.url === "string"
-                            ? citation.metadata.url
-                            : "";
-                      const fetchedAt =
-                        typeof citation.metadata?.fetchedAt === "string"
-                          ? citation.metadata.fetchedAt
-                          : "";
-                      const databaseSource =
-                        citation.metadata?.sourceType === "DATABASE";
-                      const legacyApiSource =
-                        citation.metadata?.sourceType === "LEGACY_API";
-                      const temporaryAttachment =
-                        citation.metadata?.sourceType === "CHAT_ATTACHMENT";
-                      const connectionName =
-                        typeof citation.metadata?.connectionName === "string"
-                          ? citation.metadata.connectionName
-                          : "Database";
-                      const engine =
-                        typeof citation.metadata?.engine === "string"
-                          ? citation.metadata.engine
-                          : "";
-                      const tables = Array.isArray(citation.metadata?.tables)
-                        ? citation.metadata.tables.filter(
-                            (item): item is string => typeof item === "string",
-                          )
-                        : [];
-                      const executedAt =
-                        typeof citation.metadata?.executedAt === "string"
-                          ? citation.metadata.executedAt
-                          : "";
-                      const apiName =
-                        typeof citation.metadata?.apiName === "string"
-                          ? citation.metadata.apiName
-                          : "Registered API";
-                      const operation =
-                        typeof citation.metadata?.operation === "string"
-                          ? citation.metadata.operation
-                          : "";
-                      const calledAt =
-                        typeof citation.metadata?.calledAt === "string"
-                          ? citation.metadata.calledAt
-                          : "";
-                      const durationMs =
-                        typeof citation.metadata?.durationMs === "number"
-                          ? citation.metadata.durationMs
-                          : undefined;
-                      const httpStatus =
-                        typeof citation.metadata?.httpStatus === "number"
-                          ? citation.metadata.httpStatus
-                          : undefined;
-                      return (
-                        <details
-                          key={citation.id}
-                          className="rounded-lg bg-slate-50 p-2"
-                        >
-                          <summary className="cursor-pointer text-xs font-medium text-indigo-800">
-                            [{citation.rank}]{" "}
-                            {databaseSource
-                              ? connectionName
-                              : legacyApiSource
-                                ? apiName
-                                : name}
-                            {page ? ` · page ${page}` : ""}
-                          </summary>
-                          <p className="mt-2 text-xs leading-5 text-slate-600">
-                            {citation.quote}
-                          </p>
-                          {fetchedAt ? (
-                            <p className="mt-2 text-xs text-muted-foreground">
-                              Fetched {new Date(fetchedAt).toLocaleString()}
-                            </p>
-                          ) : null}
-                          {databaseSource ? (
-                            <div className="mt-2 flex items-start gap-2 text-xs text-muted-foreground">
-                              <Database size={13} className="mt-0.5 shrink-0" />
-                              <span>
-                                {engine ? `${engine} · ` : ""}
-                                {tables.join(", ")}
-                                {executedAt
-                                  ? ` · ${new Date(executedAt).toLocaleString()}`
-                                  : ""}
-                              </span>
-                            </div>
-                          ) : null}
-                          {legacyApiSource ? (
-                            <div className="mt-2 flex items-start gap-2 text-xs text-muted-foreground">
-                              <Braces size={13} className="mt-0.5 shrink-0" />
-                              <span>
-                                {operation}
-                                {httpStatus ? ` · HTTP ${httpStatus}` : ""}
-                                {durationMs !== undefined
-                                  ? ` · ${durationMs} ms`
-                                  : ""}
-                                {calledAt
-                                  ? ` · ${new Date(calledAt).toLocaleString()}`
-                                  : ""}
-                              </span>
-                            </div>
-                          ) : null}
-                          {webUrl ? (
-                            <a
-                              href={webUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-indigo-700 underline"
-                            >
-                              <FileText size={13} /> Open web source
-                            </a>
-                          ) : documentId && !temporaryAttachment ? (
-                            <a
-                              href={`/api/documents/${documentId}/download${page ? `#page=${page}` : ""}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-indigo-700 underline"
-                            >
-                              <FileText size={13} /> Open source
-                            </a>
-                          ) : null}
-                        </details>
-                      );
-                    })}
-                  </div>
+                  <CitationSources citations={message.citations} />
                 ) : null}
               </article>
               {message.suggestedAction ? (
@@ -598,80 +468,60 @@ export function KnowledgeChat({
             </li>
           ) : null}
         </ol>
-        <div className="border-t bg-white p-4 sm:p-5">
+        <div className="border-t bg-card p-4 sm:p-5">
           <p aria-live="assertive" className="mb-2 text-sm text-destructive">
             {error}
           </p>
-          {webSearchAvailable ? (
-            <div className="mx-auto mb-2 flex max-w-4xl items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                aria-pressed={webSearch}
-                disabled={pending}
-                title="Search the live web for this message"
-                onClick={() => setWebSearch((enabled) => !enabled)}
-                className={
-                  webSearch
-                    ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                    : ""
-                }
-              >
-                <Globe2 size={16} /> Web search
-              </Button>
-              {webSearch ? (
-                <span className="text-xs text-indigo-700">
-                  Uses live web sources while enabled
-                </span>
-              ) : null}
-            </div>
-          ) : null}
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              void send();
-            }}
-            className="mx-auto max-w-4xl space-y-2"
+          <PromptInput
+            value={input}
+            onValueChange={setInput}
+            onSubmit={() => void send()}
+            loading={pending}
+            className="mx-auto max-w-4xl"
           >
-            <div className="flex items-end gap-2">
-              <ChatAttachmentPicker
-                files={attachedFiles}
-                disabled={pending}
-                onChange={setAttachedFiles}
-                onError={(message) => setError(message || undefined)}
-              />
-              <label className="flex-1">
-                <span className="sr-only">Message {bot.name}</span>
-                <textarea
-                  value={input}
-                  onChange={(event) => setInput(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault();
-                      void send();
-                    }
-                  }}
-                  placeholder="Ask about your attached files or permitted knowledge…"
-                  className="max-h-40 min-h-12 w-full resize-y rounded-xl border bg-slate-50 px-4 py-3 text-sm focus-visible:ring-2 focus-visible:ring-indigo-500"
-                />
-              </label>
-              <Button
-                type="submit"
-                disabled={pending || (!input.trim() && !attachedFiles.length)}
-                aria-label="Send message"
-              >
-                <ArrowUp size={18} />
-              </Button>
-            </div>
-            <ChatSelectedAttachments
-              files={attachedFiles}
-              disabled={pending}
-              onChange={setAttachedFiles}
+            <PromptInputTextarea
+              aria-label={`Message ${bot.name}`}
+              placeholder="Ask about your attached files or permitted knowledge…"
             />
-          </form>
-          <p className="mt-2 text-center text-xs text-muted-foreground">
-            Attached files are read for this message only and are not added to
-            the Knowledge Base.
+            {attachedFiles.length ? (
+              <div className="px-1 pb-1">
+                <ChatSelectedAttachments
+                  files={attachedFiles}
+                  disabled={pending}
+                  onChange={setAttachedFiles}
+                />
+              </div>
+            ) : null}
+            <PromptInputToolbar>
+              <PromptInputActions>
+                <ChatAttachmentPicker
+                  files={attachedFiles}
+                  disabled={pending}
+                  onChange={setAttachedFiles}
+                  onError={(message) => setError(message || undefined)}
+                  className="size-11 min-h-11 rounded-full"
+                />
+                {webSearchAvailable ? (
+                  <PromptInputButton
+                    active={webSearch}
+                    aria-pressed={webSearch}
+                    disabled={pending}
+                    title="Search the live web for this message"
+                    onClick={() => setWebSearch((enabled) => !enabled)}
+                  >
+                    <Globe2 size={17} aria-hidden="true" /> Search
+                  </PromptInputButton>
+                ) : null}
+              </PromptInputActions>
+              <PromptInputSubmit
+                disabled={!input.trim() && !attachedFiles.length}
+              />
+            </PromptInputToolbar>
+          </PromptInput>
+          <p className="mx-auto mt-2 max-w-4xl text-xs text-muted-foreground">
+            Enter to send · Shift + Enter for a new line. Attached files are
+            read for this message only and are not added to the Knowledge Base.
+            {webSearch ? " Live web sources are on for this message." : null}
           </p>
         </div>
       </section>

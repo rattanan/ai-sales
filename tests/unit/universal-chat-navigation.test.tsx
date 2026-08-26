@@ -128,12 +128,151 @@ describe("universal chat navigation", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Send message" }));
 
+    // The URL is rewritten without a router navigation. Navigating would
+    // remount the chat (the page is keyed by conversation id) and replace the
+    // just-delivered answer and its reasoning trace with whatever the server
+    // has stored — which is nothing yet on the first turn.
     await waitFor(() =>
-      expect(replace).toHaveBeenCalledWith(
-        "/workspace/chat?conversation=conversation%2Fnew%20id",
-        { scroll: false },
+      expect(window.location.search).toBe(
+        "?conversation=conversation%2Fnew%20id",
       ),
     );
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("carries the think level chosen in the composer into the request", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        `event: result\ndata: ${JSON.stringify({
+          conversation: { id: "conversation-think" },
+          userMessage: { id: "message-user", content: "Deep question" },
+          assistantMessage: {
+            id: "message-assistant",
+            role: "ASSISTANT",
+            content: "Answer",
+            citations: [],
+          },
+        })}\n\n`,
+        { status: 200, headers: { "content-type": "text/event-stream" } },
+      ),
+    );
+    render(
+      <UniversalChat
+        bots={[]}
+        sources={[]}
+        conversations={[]}
+        initialMessages={[]}
+        historyQuery=""
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("combobox", { name: "ระดับการคิด" }));
+    fireEvent.click(screen.getByRole("option", { name: /คิดลึก/ }));
+    fireEvent.change(screen.getByPlaceholderText("Ask AI-Sales…"), {
+      target: { value: "Deep question" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    const options = vi.mocked(fetch).mock.calls[0]?.[1];
+    expect(JSON.parse(options?.body as string)).toMatchObject({
+      reasoningEffort: "high",
+    });
+  });
+
+  it("uses the remembered think level without the reader touching the pill", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        `event: result\ndata: ${JSON.stringify({
+          conversation: { id: "conversation-remembered" },
+          userMessage: { id: "message-user", content: "Remembered" },
+          assistantMessage: {
+            id: "message-assistant",
+            role: "ASSISTANT",
+            content: "Answer",
+            citations: [],
+          },
+        })}\n\n`,
+        { status: 200, headers: { "content-type": "text/event-stream" } },
+      ),
+    );
+    render(
+      <UniversalChat
+        bots={[]}
+        sources={[]}
+        conversations={[]}
+        initialMessages={[]}
+        historyQuery=""
+        initialThinkLevel="medium"
+      />,
+    );
+
+    // Rendered from the cookie the server read, so the pill shows the saved
+    // choice on first paint rather than flipping to it after hydration.
+    expect(
+      screen.getByRole("combobox", { name: "ระดับการคิด" }).textContent,
+    ).toContain("คิดกลาง");
+    fireEvent.change(screen.getByPlaceholderText("Ask AI-Sales…"), {
+      target: { value: "Remembered" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    const options = vi.mocked(fetch).mock.calls[0]?.[1];
+    expect(JSON.parse(options?.body as string)).toMatchObject({
+      reasoningEffort: "medium",
+    });
+  });
+
+  it("remembers a newly picked think level in a cookie", () => {
+    render(
+      <UniversalChat
+        bots={[]}
+        sources={[]}
+        conversations={[]}
+        initialMessages={[]}
+        historyQuery=""
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("combobox", { name: "ระดับการคิด" }));
+    fireEvent.click(screen.getByRole("option", { name: /คิดเร็ว/ }));
+
+    expect(document.cookie).toContain("insightkm-think-level=low");
+    document.cookie = "insightkm-think-level=; Path=/; Max-Age=0";
+  });
+
+  it("sends on Enter from the composer", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        `event: result\ndata: ${JSON.stringify({
+          conversation: { id: "conversation-enter" },
+          userMessage: { id: "message-user", content: "Quick question" },
+          assistantMessage: {
+            id: "message-assistant",
+            role: "ASSISTANT",
+            content: "Answer",
+            citations: [],
+          },
+        })}\n\n`,
+        { status: 200, headers: { "content-type": "text/event-stream" } },
+      ),
+    );
+    render(
+      <UniversalChat
+        bots={[]}
+        sources={[]}
+        conversations={[]}
+        initialMessages={[]}
+        historyQuery=""
+      />,
+    );
+
+    const field = screen.getByPlaceholderText("Ask AI-Sales…");
+    fireEvent.change(field, { target: { value: "Quick question" } });
+    fireEvent.keyDown(field, { key: "Enter" });
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
   });
 
   it("sends a partial file selection as document-scoped retrieval", async () => {

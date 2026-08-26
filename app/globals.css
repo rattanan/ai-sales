@@ -1,4 +1,8 @@
 @import "tailwindcss";
+/* Math and code highlighting for rendered assistant answers. Imported here so
+   the fonts KaTeX needs are resolved from the app's own bundle. */
+@import "katex/dist/katex.min.css";
+@import "highlight.js/styles/github.css";
 
 :root {
   --background: #fffdf5;
@@ -233,6 +237,14 @@ summary {
 :focus-visible {
   outline: 3px solid color-mix(in srgb, var(--ring) 65%, transparent);
   outline-offset: 2px;
+}
+
+/* The chat composer shows focus as a ring around the whole box. Without this
+   the rule above also traces the bare textarea inside it, drawing a second
+   hard-edged rectangle over the rounded composer. Raised specificity rather
+   than source order, so it holds wherever this file ends up in the cascade. */
+textarea.prompt-input-field:focus-visible {
+  outline: none;
 }
 
 ::selection {

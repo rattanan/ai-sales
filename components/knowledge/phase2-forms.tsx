@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { AgentToolToggles } from "@/components/knowledge/agent-tool-toggles";
 
 type ActionState =
   | { ok: true; data: unknown }
@@ -44,6 +45,9 @@ type BotValue = {
   fallbackMessage: string | null;
   apiToolsEnabled: boolean;
   databaseToolsEnabled: boolean;
+  agenticEnabled: boolean;
+  maxToolSteps: number;
+  disabledTools: string[];
   primaryColor: string;
   headerColor: string;
   chatBubbleColor: string;
@@ -63,6 +67,8 @@ type BotValue = {
   contextSize: number;
   citationEnabled: boolean;
   memoryMode: string;
+  toolMode: string;
+  reasoningEffort: string;
   rackIds: string[];
   dataSourceIds: string[];
   legacyApiIds: string[];
@@ -263,6 +269,38 @@ export function BotConfigurationForm({
             Conversation + user-consented memory
           </option>
           <option value="NONE">No memory</option>
+        </select>
+      </Field>
+      <Field
+        label="Default reasoning level"
+        htmlFor={`bot-reasoning-${bot?.id ?? "new"}`}
+      >
+        <select
+          id={`bot-reasoning-${bot?.id ?? "new"}`}
+          name="reasoningEffort"
+          defaultValue={bot?.reasoningEffort ?? ""}
+          className="min-h-11 w-full rounded-lg border bg-white px-3"
+        >
+          <option value="">Provider default</option>
+          <option value="low">Low — fastest</option>
+          <option value="medium">Medium</option>
+          <option value="high">High — slower, more thorough</option>
+        </select>
+      </Field>
+      <Field
+        label="Tool catalog mode"
+        htmlFor={`bot-tool-mode-${bot?.id ?? "new"}`}
+      >
+        <select
+          id={`bot-tool-mode-${bot?.id ?? "new"}`}
+          name="toolMode"
+          defaultValue={bot?.toolMode ?? "SEPARATE"}
+          className="min-h-11 w-full rounded-lg border bg-white px-3"
+        >
+          <option value="SEPARATE">One tool per knowledge source</option>
+          <option value="COMBINED">
+            One combined knowledge tool (smaller models)
+          </option>
         </select>
       </Field>
       <Field label="Knowledge racks" htmlFor={`bot-racks-${bot?.id ?? "new"}`}>
@@ -493,6 +531,30 @@ export function BotConfigurationForm({
         />{" "}
         Database tools enabled
       </label>
+      <label className="flex min-h-11 items-center gap-2 text-sm">
+        <input
+          name="agenticEnabled"
+          type="checkbox"
+          defaultChecked={bot?.agenticEnabled ?? false}
+        />{" "}
+        Agentic tool calling
+      </label>
+      <Field
+        label="Max tool steps per answer"
+        htmlFor={`bot-tool-steps-${bot?.id ?? "new"}`}
+      >
+        <Input
+          id={`bot-tool-steps-${bot?.id ?? "new"}`}
+          name="maxToolSteps"
+          type="number"
+          min={1}
+          max={12}
+          defaultValue={bot?.maxToolSteps ?? 6}
+        />
+      </Field>
+      <div className="lg:col-span-2">
+        <AgentToolToggles disabledTools={bot?.disabledTools} />
+      </div>
       <label className="flex min-h-11 items-center gap-2 text-sm">
         <input
           name="brandingEnabled"

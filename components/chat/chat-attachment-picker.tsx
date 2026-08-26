@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import { FileText, Paperclip, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   CHAT_ATTACHMENT_ACCEPT,
   CHAT_ATTACHMENT_MAX_BYTES,
@@ -16,11 +17,14 @@ export function ChatAttachmentPicker({
   disabled,
   onChange,
   onError,
+  className,
 }: {
   files: File[];
   disabled?: boolean;
   onChange: (files: File[]) => void;
   onError: (message: string) => void;
+  /** Lets a composer restyle the trigger, e.g. as a round toolbar pill. */
+  className?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -79,7 +83,7 @@ export function ChatAttachmentPicker({
         aria-label="Attach documents"
         title="Attach PDF, Word, Excel, CSV, text, Markdown, or HTML"
         onClick={() => inputRef.current?.click()}
-        className="size-10 min-h-10 shrink-0 rounded-xl p-0"
+        className={cn("size-10 min-h-10 shrink-0 rounded-xl p-0", className)}
       >
         <Paperclip size={17} aria-hidden="true" />
       </Button>
