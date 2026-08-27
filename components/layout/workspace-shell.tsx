@@ -89,8 +89,12 @@ function WorkspaceShellContent({
           <WorkspaceNav {...navigation} />
         </div>
       </aside>
-      <div className="flex min-h-dvh min-w-0 flex-col lg:col-start-2">
-        <header className="sticky top-0 z-30 flex h-20 items-center justify-between border-b bg-white/90 px-4 backdrop-blur-xl sm:px-7">
+      {/* A chat screen owns exactly one viewport: the column is locked to the
+          window height so the transcript, not the document, is what scrolls. */}
+      <div
+        className={`flex min-w-0 flex-col lg:col-start-2 ${fullBleed ? "h-dvh" : "min-h-dvh"}`}
+      >
+        <header className="sticky top-0 z-30 flex h-20 shrink-0 items-center justify-between border-b bg-white/90 px-4 backdrop-blur-xl sm:px-7">
           <details className="relative lg:hidden">
             <summary
               className="grid size-11 cursor-pointer list-none place-items-center rounded-lg border"
@@ -164,7 +168,7 @@ function WorkspaceShellContent({
         </header>
         <main
           id="main-content"
-          className={`w-full min-w-0 flex-1 ${fullBleed ? "p-4" : "mx-auto max-w-[1500px] p-5 sm:p-7 lg:p-9"}`}
+          className={`w-full min-w-0 flex-1 ${fullBleed ? "flex min-h-0 flex-col p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))] sm:p-4" : "mx-auto max-w-[1500px] p-5 sm:p-7 lg:p-9"}`}
         >
           {children}
         </main>

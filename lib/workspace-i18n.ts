@@ -311,6 +311,20 @@ const thaiTranslations: Record<string, string> = {
   "Price and specs": "ราคาและสเปค",
   "Search the documents for the price and specification of ":
     "ค้นเอกสารเรื่องราคาและสเปคของ ",
+  "Conversation history": "ประวัติการสนทนา",
+  "Show conversation history": "แสดงประวัติการสนทนา",
+  "Close conversation history": "ปิดประวัติการสนทนา",
+  "New chat": "แชตใหม่",
+  "New conversation": "บทสนทนาใหม่",
+  "Search conversations": "ค้นหาบทสนทนา",
+  "Search history": "ค้นหาประวัติ",
+  Find: "ค้นหา",
+  "No universal conversations yet.": "ยังไม่มีบทสนทนา",
+  "ACL enforced": "บังคับใช้สิทธิ์ ACL",
+  Mode: "โหมด",
+  Bot: "บอต",
+  Export: "ส่งออก",
+  "Think level": "ระดับการคิด",
 };
 
 export function translateWorkspaceText(text: string, locale: WorkspaceLocale) {

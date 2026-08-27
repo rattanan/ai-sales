@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UniversalChat } from "@/components/chat/universal-chat";
@@ -287,7 +288,7 @@ describe("universal chat navigation", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("combobox", { name: "ระดับการคิด" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Think level" }));
     fireEvent.click(screen.getByRole("option", { name: /คิดลึก/ }));
     fireEvent.change(screen.getByPlaceholderText("Ask AI-Sales…"), {
       target: { value: "Deep question" },
@@ -331,7 +332,7 @@ describe("universal chat navigation", () => {
     // Rendered from the cookie the server read, so the pill shows the saved
     // choice on first paint rather than flipping to it after hydration.
     expect(
-      screen.getByRole("combobox", { name: "ระดับการคิด" }).textContent,
+      screen.getByRole("combobox", { name: "Think level" }).textContent,
     ).toContain("คิดกลาง");
     fireEvent.change(screen.getByPlaceholderText("Ask AI-Sales…"), {
       target: { value: "Remembered" },
@@ -356,7 +357,7 @@ describe("universal chat navigation", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("combobox", { name: "ระดับการคิด" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Think level" }));
     fireEvent.click(screen.getByRole("option", { name: /คิดเร็ว/ }));
 
     expect(document.cookie).toContain("insightkm-think-level=low");
@@ -491,5 +492,135 @@ describe("universal chat navigation", () => {
       .getByText("Here is the summary")
       .closest("div.rounded-2xl");
     expect(answer?.className).not.toContain("w-fit");
+  });
+});
+
+function installDialogMethods() {
+  Object.defineProperties(HTMLDialogElement.prototype, {
+    showModal: {
+      configurable: true,
+      value(this: HTMLDialogElement) {
+        this.setAttribute("open", "");
+      },
+    },
+    close: {
+      configurable: true,
+      value(this: HTMLDialogElement) {
+        this.removeAttribute("open");
+        this.dispatchEvent(new Event("close"));
+      },
+    },
+  });
+}
+
+describe("conversation history drawer", () => {
+  beforeEach(() => {
+    replace.mockReset();
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  function openDrawer() {
+    const trigger = screen.getByRole("button", {
+      name: "Show conversation history",
+    });
+    fireEvent.click(trigger);
+    return trigger;
+  }
+
+  it("opens from the header as a dialog and parks the chat behind it", () => {
+    renderChat();
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    const trigger = openDrawer();
+
+    const drawer = screen.getByRole("dialog", { name: "Conversation history" });
+    expect(drawer.id).toBe(trigger.getAttribute("aria-controls"));
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    // The chat is still on screen but nothing in it can take a tap or focus.
+    expect(document.querySelector("section")?.hasAttribute("inert")).toBe(true);
+    expect(document.activeElement).toBe(
+      within(drawer).getByRole("button", {
+        name: "Close conversation history",
+      }),
+    );
+  });
+
+  it("closes on Escape and hands focus back to the trigger", () => {
+    renderChat();
+    const trigger = openDrawer();
+
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(document.getElementById("chat-history")?.className).toContain(
+      "invisible",
+    );
+    expect(document.querySelector("section")?.hasAttribute("inert")).toBe(
+      false,
+    );
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it("closes when the scrim is tapped", () => {
+    renderChat();
+    openDrawer();
+    const drawer = screen.getByRole("dialog", { name: "Conversation history" });
+
+    const scrim = screen
+      .getAllByRole("button", { name: "Close conversation history" })
+      .find((button) => !drawer.contains(button));
+    fireEvent.click(scrim!);
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("closes as soon as a conversation is picked", () => {
+    renderChat();
+    openDrawer();
+
+    fireEvent.click(
+      screen.getByRole("link", { name: /existing conversation/i }),
+    );
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("leaves the drawer alone when Escape is meant for the delete dialog", () => {
+    installDialogMethods();
+    renderChat();
+    openDrawer();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Delete conversation: Existing conversation",
+      }),
+    );
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Cancel" }), {
+      key: "Escape",
+    });
+
+    // The native dialog owns that keystroke; the sheet behind it stays put.
+    expect(
+      screen.getByRole("dialog", { name: "Conversation history" }),
+    ).toBeTruthy();
+  });
+
+  it("stays out of the way on a wide screen", () => {
+    renderChat();
+
+    // Closed, the panel is a plain aside: the column the desktop layout shows.
+    const panel = document.getElementById("chat-history");
+    expect(panel?.getAttribute("role")).toBeNull();
+    expect(panel?.className).toContain("xl:static");
+    expect(
+      screen.getByRole("button", { name: "Show conversation history" })
+        .className,
+    ).toContain("xl:hidden");
   });
 });

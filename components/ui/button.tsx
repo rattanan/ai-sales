@@ -32,7 +32,7 @@ export function Button({
   size,
   asChild,
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> &
+}: React.ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & { asChild?: boolean }) {
   const Comp = asChild ? Slot : "button";
   return (

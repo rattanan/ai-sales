@@ -2,6 +2,7 @@
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { Brain } from "lucide-react";
 import { SelectMenu } from "@/components/ui/select-menu";
 
 const OPTIONS = [
@@ -138,5 +139,45 @@ describe("select menu", () => {
     const trigger = screen.getByRole("combobox", { name: "Mode" });
     expect(trigger.textContent).toContain("Mode");
     expect(trigger.textContent).toContain("Auto");
+  });
+
+  it("keeps the value readable when a pill is compacted to its icon", () => {
+    render(
+      <SelectMenu
+        label="Mode"
+        caption="Mode"
+        value="auto"
+        options={OPTIONS}
+        onChange={vi.fn()}
+        variant="pill"
+        icon={Brain}
+        compactBelow="sm"
+      />,
+    );
+
+    // Visually the phone sees the icon and chevron only; the name, the text
+    // content, and the tooltip still say what is selected.
+    const trigger = screen.getByRole("combobox", { name: "Mode" });
+    expect(trigger.textContent).toContain("Auto");
+    expect(trigger.title).toBe("Mode: Auto");
+    const text = trigger.querySelector(".max-sm\\:sr-only");
+    expect(text?.textContent).toContain("Auto");
+  });
+
+  it("keeps the requested alignment until a real layout says otherwise", () => {
+    render(
+      <SelectMenu
+        label="Mode"
+        value="auto"
+        options={OPTIONS}
+        onChange={vi.fn()}
+        variant="pill"
+        align="end"
+      />,
+    );
+    fireEvent.click(screen.getByRole("combobox", { name: "Mode" }));
+
+    // jsdom reports a zero-size box, which must not be read as overflow.
+    expect(screen.getByRole("listbox").className).toContain("right-0");
   });
 });

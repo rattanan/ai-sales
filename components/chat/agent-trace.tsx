@@ -199,7 +199,9 @@ function ToolEntry({
           className={`shrink-0 transition-transform ${open ? "rotate-90" : ""} ${expandable ? "" : "opacity-0"} motion-reduce:transition-none`}
         />
         <Icon size={14} className="shrink-0 text-muted-foreground" />
-        <span className="font-medium">{toolLabel(entry.toolName)}</span>
+        <span className="min-w-0 truncate font-medium">
+          {toolLabel(entry.toolName)}
+        </span>
         <StatusMark status={entry.status} />
         {duration(entry.durationMs) ? (
           <span className="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">
@@ -208,7 +210,9 @@ function ToolEntry({
         ) : null}
       </button>
       {entry.status === "FAILED" && entry.errorCode ? (
-        <p className="mt-0.5 ml-6 text-xs text-amber-700">{entry.errorCode}</p>
+        <p className="mt-0.5 ml-6 text-xs break-all text-amber-700">
+          {entry.errorCode}
+        </p>
       ) : null}
       {open ? (
         <div className="mt-1 ml-6 space-y-1.5">
@@ -309,7 +313,7 @@ export function AgentTrace({
             aria-hidden="true"
           />
         )}
-        <span className="font-medium">{summary}</span>
+        <span className="min-w-0 truncate font-medium">{summary}</span>
         {failed > 0 ? (
           <span className="text-xs text-amber-700">
             {failed} รายการไม่สำเร็จ

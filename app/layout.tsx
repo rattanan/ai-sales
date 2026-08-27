@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -16,6 +16,19 @@ export const metadata: Metadata = {
   title: { default: "AI-Sales", template: "%s · AI-Sales" },
   description:
     "Secure enterprise knowledge, governed AI assistants, and business insight in one platform.",
+};
+
+/**
+ * `cover` lets the chat screens pad around the notch and home indicator with
+ * `env(safe-area-inset-*)`; `resizes-content` shrinks the layout viewport (and
+ * so `dvh`) when the on-screen keyboard opens, keeping the composer in view.
+ * Zoom stays enabled on purpose.
+ */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({

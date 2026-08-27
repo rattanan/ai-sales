@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   AgentTrace,
@@ -20,6 +20,7 @@ import {
   type ReasoningRow,
 } from "@/lib/agent-trace";
 import {
+  Bot,
   Brain,
   Building2,
   Download,
@@ -27,8 +28,11 @@ import {
   Globe2,
   LoaderCircle,
   MessageSquarePlus,
+  Layers,
   Library,
+  PanelLeftOpen,
   Search,
+  SlidersHorizontal,
   Sparkles,
   UserSearch,
 } from "lucide-react";
@@ -41,6 +45,9 @@ import {
   PromptInputToolbar,
 } from "@/components/ui/prompt-input";
 import { SelectMenu, type SelectMenuOption } from "@/components/ui/select-menu";
+import { Button } from "@/components/ui/button";
+import { SideSheet } from "@/components/ui/side-sheet";
+import { cn } from "@/lib/utils";
 import { rememberThinkLevel, type ThinkLevel } from "@/lib/chat-preferences";
 import { useWorkspaceLocale } from "@/components/layout/workspace-locale";
 import { useComposerReveal } from "@/components/chat/use-composer-reveal";
@@ -260,6 +267,7 @@ export function UniversalChat({
   const [botId, setBotId] = useState("");
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
   const [sourcePanelOpen, setSourcePanelOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [conversationId, setConversationId] = useState(selectedConversationId);
   const [messages, setMessages] = useState(initialMessages);
   const [message, setMessage] = useState("");
@@ -291,6 +299,7 @@ export function UniversalChat({
 
   const logRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  const historyTriggerRef = useRef<HTMLButtonElement>(null);
   const {
     composerRef: composerBoxRef,
     composerHidden,
@@ -336,12 +345,21 @@ export function UniversalChat({
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [sourcePanelOpen]);
 
+  const closeHistory = useCallback(() => setHistoryOpen(false), []);
+
+  function openHistory() {
+    // On a phone each overlay's scrim would cover the other's trigger.
+    setSourcePanelOpen(false);
+    setHistoryOpen(true);
+  }
+
   function startNewChat() {
     setScope("SMART");
     setMode("AUTO");
     setBotId("");
     setSelectedDocumentIds([]);
     setSourcePanelOpen(false);
+    setHistoryOpen(false);
     setConversationId(undefined);
     setMessages([]);
     setMessage("");
@@ -522,82 +540,118 @@ export function UniversalChat({
 
   return (
     <div
-      className={`grid h-[calc(100dvh-7rem)] min-h-[520px] gap-5 xl:grid-cols-[290px_minmax(0,1fr)] ${sourcePanelOpen ? "2xl:grid-cols-[290px_minmax(0,1fr)_320px]" : ""}`}
+      className={cn(
+        "grid min-h-0 flex-1 gap-3 sm:gap-5 xl:grid-cols-[290px_minmax(0,1fr)]",
+        sourcePanelOpen && "2xl:grid-cols-[290px_minmax(0,1fr)_320px]",
+      )}
     >
-      <aside className="flex flex-col overflow-hidden rounded-xl border bg-card p-4">
-        <Link
-          href="/workspace/chat"
-          onClick={startNewChat}
-          className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground"
-        >
-          <MessageSquarePlus size={17} /> New chat
-        </Link>
-        <form className="relative mt-4">
-          <Search
-            className="pointer-events-none absolute left-3 top-3.5 text-muted-foreground"
-            size={16}
-          />
-          <input
-            name="q"
-            defaultValue={historyQuery}
-            aria-label="Search conversations"
-            placeholder="Search conversations"
-            className="min-h-11 w-full rounded-lg border bg-background pl-9 pr-3 text-sm"
-          />
-        </form>
-        <nav
-          aria-label="Conversations"
-          className="mt-4 min-h-0 flex-1 space-y-1 overflow-y-auto"
-        >
-          {conversations.map((conversation) => {
-            const active = conversation.id === conversationId;
-            return (
-              <div
-                key={conversation.id}
-                className={`flex items-stretch rounded-lg ${active ? "bg-secondary text-secondary-foreground" : "hover:bg-muted"}`}
-              >
-                <Link
-                  href={`/workspace/chat?conversation=${conversation.id}`}
-                  aria-current={active ? "page" : undefined}
-                  className="min-w-0 flex-1 rounded-lg px-3 py-3 text-sm"
+      <SideSheet
+        id="chat-history"
+        open={historyOpen}
+        onClose={closeHistory}
+        label={t("Conversation history")}
+        closeLabel={t("Close conversation history")}
+        returnFocusTo={historyTriggerRef}
+      >
+        <div className="flex min-h-0 flex-1 flex-col p-4">
+          <Link
+            href="/workspace/chat"
+            onClick={startNewChat}
+            className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground"
+          >
+            <MessageSquarePlus size={17} /> {t("New chat")}
+          </Link>
+          <form className="relative mt-4">
+            <Search
+              className="pointer-events-none absolute left-3 top-3.5 text-muted-foreground"
+              size={16}
+            />
+            <input
+              name="q"
+              defaultValue={historyQuery}
+              aria-label={t("Search conversations")}
+              placeholder={t("Search conversations")}
+              className="min-h-11 w-full rounded-lg border bg-background pl-9 pr-3 text-sm"
+            />
+          </form>
+          <nav
+            aria-label="Conversations"
+            className="mt-4 min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain"
+          >
+            {conversations.map((conversation) => {
+              const active = conversation.id === conversationId;
+              return (
+                <div
+                  key={conversation.id}
+                  className={`flex items-stretch rounded-lg ${active ? "bg-secondary text-secondary-foreground" : "hover:bg-muted"}`}
                 >
-                  <span className="block truncate font-medium">
-                    {conversation.title}
-                  </span>
-                  <span className="mt-1 block truncate text-xs text-muted-foreground">
-                    {conversation.botName} ·{" "}
-                    {new Date(
-                      conversation.lastMessageAt,
-                    ).toLocaleDateString()}
-                  </span>
-                </Link>
-                <ConversationDeleteButton
-                  conversationId={conversation.id}
-                  conversationTitle={conversation.title}
-                  onDeleted={active ? startNewChat : undefined}
-                />
-              </div>
-            );
-          })}
-          {!conversations.length ? (
-            <p className="px-3 py-5 text-sm text-muted-foreground">
-              No universal conversations yet.
-            </p>
-          ) : null}
-        </nav>
-      </aside>
-      <section className="relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border bg-card">
-        <header className="border-b p-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <Sparkles className="text-primary" size={20} />
-            <h1 className="font-semibold">Universal Chat</h1>
-            <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
-              ACL enforced
+                  <Link
+                    href={`/workspace/chat?conversation=${conversation.id}`}
+                    onClick={closeHistory}
+                    aria-current={active ? "page" : undefined}
+                    className="min-w-0 flex-1 rounded-lg px-3 py-3 text-sm"
+                  >
+                    <span className="block truncate font-medium">
+                      {conversation.title}
+                    </span>
+                    <span className="mt-1 block truncate text-xs text-muted-foreground">
+                      {conversation.botName} ·{" "}
+                      {new Date(
+                        conversation.lastMessageAt,
+                      ).toLocaleDateString()}
+                    </span>
+                  </Link>
+                  <ConversationDeleteButton
+                    conversationId={conversation.id}
+                    conversationTitle={conversation.title}
+                    onDeleted={active ? startNewChat : undefined}
+                  />
+                </div>
+              );
+            })}
+            {!conversations.length ? (
+              <p className="px-3 py-5 text-sm text-muted-foreground">
+                {t("No universal conversations yet.")}
+              </p>
+            ) : null}
+          </nav>
+        </div>
+      </SideSheet>
+      <section
+        inert={historyOpen || undefined}
+        className="relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border bg-card"
+      >
+        <header className="border-b p-3 sm:p-4">
+          {/* On a phone the row never wraps: the title gives way so the pills
+              stay in the top-right corner. */}
+          <div className="flex items-center gap-2 sm:flex-wrap">
+            <Button
+              ref={historyTriggerRef}
+              type="button"
+              variant="outline"
+              size="icon"
+              className="xl:hidden"
+              aria-label={t("Show conversation history")}
+              title={t("Show conversation history")}
+              aria-controls="chat-history"
+              aria-expanded={historyOpen}
+              onClick={openHistory}
+            >
+              <PanelLeftOpen size={18} aria-hidden="true" />
+            </Button>
+            <Sparkles className="hidden text-primary sm:block" size={20} />
+            <h1 className="min-w-0 truncate font-semibold max-sm:flex-1">
+              {t("Universal Chat")}
+            </h1>
+            <span className="hidden rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 sm:inline-flex">
+              {t("ACL enforced")}
             </span>
-            <div className="ml-auto flex flex-wrap items-center gap-2">
+            <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
               <SelectMenu
-                label="Scope"
-                caption="Scope"
+                label={t("Scope")}
+                caption={t("Scope")}
+                icon={Layers}
+                compactBelow="md"
                 value={scope}
                 options={SCOPE_OPTIONS}
                 variant="pill"
@@ -609,8 +663,10 @@ export function UniversalChat({
                 }}
               />
               <SelectMenu
-                label="Mode"
-                caption="Mode"
+                label={t("Mode")}
+                caption={t("Mode")}
+                icon={SlidersHorizontal}
+                compactBelow="md"
                 value={mode}
                 options={MODE_OPTIONS}
                 variant="pill"
@@ -619,8 +675,10 @@ export function UniversalChat({
               />
               {showBot ? (
                 <SelectMenu
-                  label="Bot"
-                  caption="Bot"
+                  label={t("Bot")}
+                  caption={t("Bot")}
+                  icon={Bot}
+                  compactBelow="md"
                   value={botId}
                   options={botOptions}
                   variant="pill"
@@ -631,9 +689,11 @@ export function UniversalChat({
               {conversationId ? (
                 <a
                   href={`/api/universal-chat/export?conversation=${conversationId}`}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-semibold"
+                  title={t("Export")}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-semibold max-md:size-11 max-md:justify-center max-md:px-0"
                 >
-                  <Download size={16} /> Export
+                  <Download size={16} aria-hidden="true" />
+                  <span className="max-md:sr-only">{t("Export")}</span>
                 </a>
               ) : null}
             </div>
@@ -663,10 +723,10 @@ export function UniversalChat({
               ? undefined
               : { paddingBottom: transcriptPadding }
           }
-          className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-slate-50/60 p-4 transition-[padding] duration-500 ease-out motion-reduce:transition-none sm:p-6"
+          className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-slate-50/60 p-3 transition-[padding] duration-500 ease-out motion-reduce:transition-none sm:space-y-5 sm:p-6"
         >
           {!messages.length ? (
-            <div className="mx-auto mt-12 max-w-2xl">
+            <div className="mx-auto mt-6 max-w-2xl sm:mt-12">
               <div className="text-center">
                 <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-secondary text-secondary-foreground">
                   <Sparkles />
@@ -716,7 +776,7 @@ export function UniversalChat({
             return (
               <article
                 key={item.id}
-                className={`group/message max-w-3xl ${item.role === "USER" ? "ml-auto" : "mr-auto"}`}
+                className={`group/message ${item.role === "USER" ? "ml-auto max-w-[85%] sm:max-w-3xl" : "mr-auto max-w-3xl"}`}
               >
                 {/* The trace comes first because it happened first: the turn
                   reads top to bottom as thinking, then acting, then answering,
@@ -744,7 +804,7 @@ export function UniversalChat({
                   />
                 ) : (
                   <div
-                    className={`rounded-2xl px-4 py-3 text-sm leading-6 ${item.role === "USER" ? "bg-primary text-primary-foreground ml-auto w-fit rounded-br-sm break-words whitespace-pre-wrap" : "mt-2 border bg-white"}`}
+                    className={`rounded-2xl px-3.5 py-2.5 text-sm leading-6 sm:px-4 sm:py-3 ${item.role === "USER" ? "bg-primary text-primary-foreground ml-auto w-fit rounded-br-sm break-words whitespace-pre-wrap" : "mt-2 border bg-white"}`}
                   >
                     {item.role === "USER" ? (
                       item.content
@@ -843,8 +903,11 @@ export function UniversalChat({
             aria-hidden
             className="pointer-events-none h-10 bg-gradient-to-b from-card/0 to-card"
           />
-          <div className="bg-card px-4 pb-4 pt-1">
-            <p role="alert" className="mb-2 text-sm text-destructive">
+          <div className="bg-card px-3 pb-3 pt-1 sm:px-4 sm:pb-4">
+            <p
+              role="alert"
+              className="mb-2 text-sm text-destructive empty:hidden"
+            >
               {error}
             </p>
             <PromptInput
@@ -882,13 +945,15 @@ export function UniversalChat({
                       aria-pressed={webSearch}
                       disabled={pending}
                       title="Search the live web for this message"
+                      className="max-sm:size-11 max-sm:px-0"
                       onClick={() => setWebSearch((enabled) => !enabled)}
                     >
-                      <Globe2 size={17} aria-hidden="true" /> Search
+                      <Globe2 size={17} aria-hidden="true" />
+                      <span className="max-sm:sr-only">{t("Search")}</span>
                     </PromptInputButton>
                   ) : null}
                   <SelectMenu
-                    label="ระดับการคิด"
+                    label={t("Think level")}
                     value={thinkLevel}
                     options={THINK_LEVEL_OPTIONS}
                     onChange={(level) => {
@@ -899,14 +964,17 @@ export function UniversalChat({
                     variant="pill"
                     side="top"
                     icon={Brain}
+                    compactBelow="sm"
                   />
                   <PromptInputButton
                     active={showSources}
                     aria-controls="chat-source-panel"
                     aria-expanded={sourcePanelOpen}
+                    className="max-sm:px-2.5"
                     onClick={() => setSourcePanelOpen((open) => !open)}
                   >
-                    <Library size={17} aria-hidden="true" /> Sources
+                    <Library size={17} aria-hidden="true" />
+                    <span className="max-sm:sr-only">{t("Sources")}</span>
                     {selectedDocumentIds.length ? (
                       <span className="rounded-full bg-primary px-1.5 py-0.5 text-[11px] leading-none font-bold text-primary-foreground tabular-nums">
                         {selectedDocumentIds.length}
@@ -919,7 +987,7 @@ export function UniversalChat({
                 />
               </PromptInputToolbar>
             </PromptInput>
-            <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <p className="mt-2 hidden flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground sm:flex">
               <span>Enter to send · Shift + Enter for a new line</span>
               <span>Attach up to 3 supported documents.</span>
               {webSearch ? (

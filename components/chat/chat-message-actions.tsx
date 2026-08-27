@@ -238,7 +238,7 @@ export function ChatMessageEditor({
   }
 
   return (
-    <div className="w-[min(32rem,calc(100vw-6rem))] max-w-full rounded-2xl border border-primary/30 bg-card p-2 shadow-sm">
+    <div className="ml-auto w-full max-w-[32rem] rounded-2xl border border-primary/30 bg-card p-2 shadow-sm">
       <textarea
         ref={textareaRef}
         value={value}

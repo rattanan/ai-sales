@@ -3,6 +3,7 @@
 import {
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type ComponentType,
@@ -10,6 +11,16 @@ import {
 } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+// Literal class strings, because Tailwind only emits what it can read.
+const COMPACT_TEXT = {
+  sm: "max-sm:sr-only",
+  md: "max-md:sr-only",
+} as const;
+const COMPACT_PILL = {
+  sm: "max-sm:justify-center max-sm:px-2.5",
+  md: "max-md:justify-center max-md:px-2.5",
+} as const;
 
 export type SelectMenuOption<Value extends string> = {
   value: Value;
@@ -43,6 +54,7 @@ export function SelectMenu<Value extends string>({
   side = "bottom",
   align = "start",
   icon: Icon,
+  compactBelow,
   className,
 }: {
   value: Value;
@@ -62,6 +74,12 @@ export function SelectMenu<Value extends string>({
   side?: "top" | "bottom";
   align?: "start" | "end";
   icon?: ComponentType<{ size?: number; className?: string }>;
+  /**
+   * Below this breakpoint a pill shows only its icon and chevron; the caption
+   * and value stay in the accessible name and in the trigger's tooltip. Pair
+   * it with `icon`, or the pill has nothing left to show.
+   */
+  compactBelow?: "sm" | "md";
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -110,6 +128,25 @@ export function SelectMenu<Value extends string>({
       ?.querySelector('[data-active="true"]')
       ?.scrollIntoView?.({ block: "nearest" });
   }, [open, activeIndex]);
+
+  useLayoutEffect(() => {
+    // A pill at the left edge of a phone with `align="end"` would open off
+    // screen; the popup flips to the side that fits before it is painted. The
+    // list unmounts on close, so the inline override never needs undoing.
+    const list = listRef.current;
+    if (!open || !list) return;
+    const rect = list.getBoundingClientRect();
+    // jsdom lays nothing out: a zero-width box says nothing about overflow.
+    if (rect.width === 0) return;
+    const viewportWidth = document.documentElement.clientWidth;
+    if (rect.left < 8) {
+      list.style.left = "0";
+      list.style.right = "auto";
+    } else if (rect.right > viewportWidth - 8) {
+      list.style.right = "0";
+      list.style.left = "auto";
+    }
+  }, [open]);
 
   function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
     const last = options.length - 1;
@@ -185,6 +222,7 @@ export function SelectMenu<Value extends string>({
         aria-label={label}
         aria-activedescendant={open ? optionId(activeIndex) : undefined}
         disabled={disabled}
+        title={`${caption ?? label}: ${selected?.label ?? ""}`}
         onClick={() => (open ? setOpen(false) : openAt(selectedIndex))}
         onKeyDown={handleKeyDown}
         className={cn(
@@ -193,13 +231,19 @@ export function SelectMenu<Value extends string>({
             "w-full rounded-lg bg-background px-3 text-left hover:border-slate-400",
           variant === "pill" &&
             "rounded-full bg-card px-4 font-semibold hover:bg-muted",
+          compactBelow && COMPACT_PILL[compactBelow],
           open && "border-primary",
         )}
       >
         {Icon ? (
           <Icon size={16} className="shrink-0 text-muted-foreground" />
         ) : null}
-        <span className="min-w-0 flex-1 truncate">
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate",
+            compactBelow && COMPACT_TEXT[compactBelow],
+          )}
+        >
           {caption ? (
             <span className="font-normal text-muted-foreground">
               {caption}{" "}
@@ -223,7 +267,7 @@ export function SelectMenu<Value extends string>({
           role="listbox"
           aria-label={label}
           className={cn(
-            "absolute z-50 max-h-72 min-w-full overflow-y-auto rounded-xl border bg-card p-1 shadow-lg",
+            "absolute z-50 max-h-72 max-w-[calc(100vw-1rem)] min-w-full overflow-y-auto rounded-xl border bg-card p-1 shadow-lg",
             side === "bottom" ? "top-full mt-1" : "bottom-full mb-1",
             align === "start" ? "left-0" : "right-0",
             variant === "pill" && "w-max",
@@ -252,7 +296,7 @@ export function SelectMenu<Value extends string>({
                 )}
               />
               <span className="min-w-0">
-                <span className="block whitespace-nowrap">{option.label}</span>
+                <span className="block truncate">{option.label}</span>
                 {option.hint ? (
                   <span className="mt-0.5 block text-xs text-muted-foreground">
                     {option.hint}
