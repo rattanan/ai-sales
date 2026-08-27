@@ -11,6 +11,10 @@ import {
   isWorkspaceLocale,
   WORKSPACE_LOCALE_COOKIE,
 } from "@/lib/workspace-i18n";
+import {
+  isSidebarCollapsed,
+  WORKSPACE_SIDEBAR_COOKIE,
+} from "@/lib/workspace-chrome";
 
 export default async function WorkspaceLayout({
   children,
@@ -25,11 +29,16 @@ export default async function WorkspaceLayout({
     include: { organization: true },
   });
   const permissions = await getPermissionKeys(context);
-  const savedLocale = (await cookies()).get(WORKSPACE_LOCALE_COOKIE)?.value;
+  const cookieStore = await cookies();
+  const savedLocale = cookieStore.get(WORKSPACE_LOCALE_COOKIE)?.value;
   const initialLocale = isWorkspaceLocale(savedLocale) ? savedLocale : "en";
+  const initialSidebarCollapsed = isSidebarCollapsed(
+    cookieStore.get(WORKSPACE_SIDEBAR_COOKIE)?.value,
+  );
   return (
     <WorkspaceShell
       initialLocale={initialLocale}
+      initialSidebarCollapsed={initialSidebarCollapsed}
       user={user}
       workspace={{
         name: workspace.name,

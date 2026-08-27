@@ -325,6 +325,9 @@ const thaiTranslations: Record<string, string> = {
   Bot: "บอต",
   Export: "ส่งออก",
   "Think level": "ระดับการคิด",
+  "Collapse sidebar": "ย่อแถบด้านข้าง",
+  "Expand sidebar": "ขยายแถบด้านข้าง",
+  "Account menu": "เมนูบัญชี",
 };
 
 export function translateWorkspaceText(text: string, locale: WorkspaceLocale) {

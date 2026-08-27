@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/prompt-input";
 import { SelectMenu, type SelectMenuOption } from "@/components/ui/select-menu";
 import { SideSheet } from "@/components/ui/side-sheet";
+import { WorkspaceMobileChrome } from "@/components/layout/workspace-mobile-chrome";
 import { useWorkspaceLocale } from "@/components/layout/workspace-locale";
 import { MessageFeedbackButtons } from "@/components/chat/message-feedback-buttons";
 import { CitationSources } from "@/components/chat/citation-sources";
@@ -287,7 +288,7 @@ export function KnowledgeChat({
   }
 
   return (
-    <div className="grid min-h-0 flex-1 overflow-hidden rounded-2xl border bg-card xl:grid-cols-[290px_minmax(0,1fr)]">
+    <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden rounded-2xl border bg-card max-sm:rounded-none max-sm:border-0 xl:grid-cols-[290px_minmax(0,1fr)]">
       <SideSheet
         id="knowledge-history"
         open={historyOpen}
@@ -410,7 +411,10 @@ export function KnowledgeChat({
         inert={historyOpen || undefined}
         className="relative flex min-h-0 min-w-0 flex-col"
       >
-        <header className="flex flex-wrap items-center gap-2 border-b px-3 py-3 sm:gap-3 sm:px-5 sm:py-4">
+        {/* Below lg this row is the only bar on screen, so it also carries the
+            shell's menu and account controls and clears the status bar. */}
+        <header className="flex flex-wrap items-center gap-1.5 border-b px-3 py-3 max-lg:pt-[max(0.75rem,env(safe-area-inset-top))] sm:gap-3 sm:px-5 sm:py-4">
+          <WorkspaceMobileChrome slot="start" />
           <Button
             ref={historyTriggerRef}
             type="button"
@@ -428,14 +432,16 @@ export function KnowledgeChat({
           <span className="hidden size-10 place-items-center rounded-xl bg-indigo-100 text-indigo-700 sm:grid">
             <Bot size={20} />
           </span>
-          <div className="min-w-0">
-            <h1 className="truncate font-semibold">{bot.name}</h1>
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate font-semibold max-sm:text-sm">
+              {bot.name}
+            </h1>
             <p className="hidden text-xs text-muted-foreground sm:block">
               Grounded answers with governed citations
             </p>
           </div>
           {!conversationId && projects.length > 1 ? (
-            <div className="ml-auto text-xs text-muted-foreground max-sm:w-full">
+            <div className="text-xs text-muted-foreground max-sm:order-last max-sm:w-full">
               <span className="mb-1 block">Project context</span>
               <SelectMenu
                 label="Project context"
@@ -446,6 +452,7 @@ export function KnowledgeChat({
               />
             </div>
           ) : null}
+          <WorkspaceMobileChrome slot="end" />
         </header>
         <ol
           ref={logRef}

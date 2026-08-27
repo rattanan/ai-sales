@@ -10,6 +10,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UniversalChat } from "@/components/chat/universal-chat";
+import { WorkspaceMobileChromeProvider } from "@/components/layout/workspace-mobile-chrome";
 import { submitMessageFeedbackAction } from "@/features/chat/actions";
 
 const replace = vi.fn();
@@ -609,6 +610,32 @@ describe("conversation history drawer", () => {
     expect(
       screen.getByRole("dialog", { name: "Conversation history" }),
     ).toBeTruthy();
+  });
+
+  it("hosts the shell's mobile controls at either end of its header", () => {
+    render(
+      <WorkspaceMobileChromeProvider
+        value={{
+          start: <button type="button">Workspace menu</button>,
+          end: <button type="button">Account</button>,
+        }}
+      >
+        <UniversalChat
+          bots={[]}
+          sources={[]}
+          conversations={[]}
+          initialMessages={[]}
+          historyQuery=""
+        />
+      </WorkspaceMobileChromeProvider>,
+    );
+
+    const header = screen
+      .getByRole("heading", { name: "Universal Chat" })
+      .closest("header");
+    const buttons = within(header!).getAllByRole("button");
+    expect(buttons[0].textContent).toBe("Workspace menu");
+    expect(buttons[buttons.length - 1].textContent).toBe("Account");
   });
 
   it("stays out of the way on a wide screen", () => {

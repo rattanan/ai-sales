@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isChatSurface } from "@/lib/workspace-chrome";
+import { isChatSurface, isSidebarCollapsed } from "@/lib/workspace-chrome";
 
 describe("isChatSurface", () => {
   it("treats Universal Chat as a full-bleed app view", () => {
@@ -29,5 +29,14 @@ describe("isChatSurface", () => {
       "/workspace/chat/cmt3sc1dv001wmha1z9o8crtw/settings",
     ])
       expect(isChatSurface(path)).toBe(false);
+  });
+});
+
+describe("isSidebarCollapsed", () => {
+  it("collapses only on the exact cookie value", () => {
+    expect(isSidebarCollapsed("collapsed")).toBe(true);
+    expect(isSidebarCollapsed("expanded")).toBe(false);
+    expect(isSidebarCollapsed("anything-else")).toBe(false);
+    expect(isSidebarCollapsed(undefined)).toBe(false);
   });
 });

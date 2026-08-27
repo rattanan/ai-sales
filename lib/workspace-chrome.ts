@@ -13,3 +13,10 @@ export function isChatSurface(pathname: string) {
   const child = /^\/workspace\/chat\/([^/]+)\/?$/.exec(pathname);
   return child ? !CHAT_LIST_PAGES.has(child[1]) : false;
 }
+
+export const WORKSPACE_SIDEBAR_COOKIE = "insightkm-sidebar";
+
+/** The cookie records the exception: absent or unknown means expanded. */
+export function isSidebarCollapsed(value: string | undefined) {
+  return value === "collapsed";
+}

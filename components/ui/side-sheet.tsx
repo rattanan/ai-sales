@@ -126,7 +126,9 @@ export function SideSheet({
         role={open ? "dialog" : undefined}
         aria-modal={open || undefined}
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-[min(20rem,85vw)] flex-col bg-card shadow-2xl",
+          // min-h-0 + overflow-hidden: once docked as a grid item the list
+          // inside must scroll, not stretch the row past the viewport.
+          "fixed inset-y-0 left-0 z-50 flex min-h-0 w-[min(20rem,85vw)] flex-col overflow-hidden bg-card shadow-2xl",
           "pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]",
           // visibility is what keeps the closed sheet out of the tab order and
           // away from assistive tech; it flips only once the slide has ended.

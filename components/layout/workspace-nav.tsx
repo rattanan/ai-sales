@@ -390,8 +390,13 @@ function CollapsibleNavigationGroup({
 
 export function WorkspaceNav({
   mobile = false,
+  collapsed = false,
   ...access
-}: NavigationAccess & { mobile?: boolean }) {
+}: NavigationAccess & {
+  mobile?: boolean;
+  /** Icon rail: labels move to the tooltip and the accessible name. */
+  collapsed?: boolean;
+}) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { t } = useWorkspaceLocale();
@@ -422,8 +427,10 @@ export function WorkspaceNav({
               key={item.href}
               href={item.href}
               aria-current={active ? "page" : undefined}
+              title={collapsed ? t(item.label) : undefined}
               className={cn(
                 "group flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium leading-5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 motion-reduce:transition-none",
+                collapsed && "justify-center px-0",
                 active
                   ? "bg-indigo-50 text-indigo-950 shadow-[inset_3px_0_0_#ffd400]"
                   : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
@@ -437,13 +444,29 @@ export function WorkspaceNav({
                 )}
                 aria-hidden="true"
               />
-              <span>{t(item.label)}</span>
+              <span className={collapsed ? "sr-only" : undefined}>
+                {t(item.label)}
+              </span>
             </Link>
           );
         });
 
         if (group.label === "Dashboard") {
           return <div key={group.label}>{itemLinks}</div>;
+        }
+
+        // A rail has no room for a group heading; a rule stands in for it.
+        if (collapsed) {
+          return (
+            <div
+              key={group.label}
+              role="group"
+              aria-label={t(group.label)}
+              className="space-y-1 border-t border-slate-200 pt-2"
+            >
+              {itemLinks}
+            </div>
+          );
         }
 
         return (

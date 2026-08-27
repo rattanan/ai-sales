@@ -54,6 +54,18 @@ describe("WorkspaceNav", () => {
     expect(screen.queryByText("Knowledge Folders")).toBeNull();
   });
 
+  it("collapses to an icon rail that still names every destination", () => {
+    render(<WorkspaceNav collapsed {...access} />);
+
+    // No disclosure headings: each group becomes a labelled run of icons.
+    expect(document.querySelector("details")).toBeNull();
+    expect(screen.getByRole("group", { name: "Sources" })).toBeTruthy();
+
+    const link = screen.getByRole("link", { name: "All knowledge" });
+    expect(link.getAttribute("title")).toBe("All knowledge");
+    expect(link.querySelector("span")?.className).toContain("sr-only");
+  });
+
   it("translates the renamed menu items to Thai", () => {
     expect(translateWorkspaceText("All knowledge", "th")).toBe(
       "ความรู้ทั้งหมด",

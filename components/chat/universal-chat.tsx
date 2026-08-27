@@ -47,6 +47,7 @@ import {
 import { SelectMenu, type SelectMenuOption } from "@/components/ui/select-menu";
 import { Button } from "@/components/ui/button";
 import { SideSheet } from "@/components/ui/side-sheet";
+import { WorkspaceMobileChrome } from "@/components/layout/workspace-mobile-chrome";
 import { cn } from "@/lib/utils";
 import { rememberThinkLevel, type ThinkLevel } from "@/lib/chat-preferences";
 import { useWorkspaceLocale } from "@/components/layout/workspace-locale";
@@ -541,7 +542,9 @@ export function UniversalChat({
   return (
     <div
       className={cn(
-        "grid min-h-0 flex-1 gap-3 sm:gap-5 xl:grid-cols-[290px_minmax(0,1fr)]",
+        // The single row is pinned to the space available, so neither column's
+        // content can push the composer below the fold.
+        "grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-3 sm:gap-5 xl:grid-cols-[290px_minmax(0,1fr)]",
         sourcePanelOpen && "2xl:grid-cols-[290px_minmax(0,1fr)_320px]",
       )}
     >
@@ -619,12 +622,15 @@ export function UniversalChat({
       </SideSheet>
       <section
         inert={historyOpen || undefined}
-        className="relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border bg-card"
+        className="relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border bg-card max-sm:rounded-none max-sm:border-0"
       >
-        <header className="border-b p-3 sm:p-4">
+        {/* Below lg this row is the only bar on screen, so it also carries the
+            shell's menu and account controls and clears the status bar. */}
+        <header className="border-b p-3 max-lg:pt-[max(0.75rem,env(safe-area-inset-top))] sm:p-4">
           {/* On a phone the row never wraps: the title gives way so the pills
               stay in the top-right corner. */}
-          <div className="flex items-center gap-2 sm:flex-wrap">
+          <div className="flex items-center gap-1.5 sm:gap-2 sm:flex-wrap">
+            <WorkspaceMobileChrome slot="start" />
             <Button
               ref={historyTriggerRef}
               type="button"
@@ -640,7 +646,7 @@ export function UniversalChat({
               <PanelLeftOpen size={18} aria-hidden="true" />
             </Button>
             <Sparkles className="hidden text-primary sm:block" size={20} />
-            <h1 className="min-w-0 truncate font-semibold max-sm:flex-1">
+            <h1 className="min-w-0 truncate font-semibold max-sm:flex-1 max-sm:text-sm">
               {t("Universal Chat")}
             </h1>
             <span className="hidden rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 sm:inline-flex">
@@ -697,6 +703,7 @@ export function UniversalChat({
                 </a>
               ) : null}
             </div>
+            <WorkspaceMobileChrome slot="end" />
           </div>
           {showSources ? (
             <p className="mt-3 flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
