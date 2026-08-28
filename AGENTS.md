@@ -121,6 +121,20 @@ required administrator variables; no password is hardcoded in the repository.
 - Workspace UI supports English and Thai. Add user-facing workspace strings to
   the established localization path in `lib/workspace-i18n.ts` rather than
   creating an isolated translation mechanism.
+- Breakpoints are set by the shell: the sidebar docks at `lg`, a chat history
+  column at `xl` (`components/ui/side-sheet.tsx`; a slide-in sheet below that).
+  Below `lg` a chat surface is the only bar on screen: it hosts the shell's
+  menu and account controls through `WorkspaceMobileChrome` slots, and the
+  shell hides its own bar on `isChatSurface` routes.
+- Controls collapse to icons on small screens rather than wrapping: pass
+  `compactBelow` to `SelectMenu`, keep a label in an `sr-only` span plus
+  `title`. Touch-aware styling uses the `[@media(hover:hover)]` variant.
+- Shell preferences (locale, sidebar collapsed) are cookies read in
+  `app/(workspace)/workspace/layout.tsx`, so the first paint already matches
+  the saved state.
+- jsdom evaluates no media queries: unit tests assert the contract (classes,
+  ARIA, `inert`, focus) and breakpoints are checked in a browser at 375, 768,
+  and 1280 px.
 
 ### Tenant, authorization, and audit boundaries
 
