@@ -62,6 +62,7 @@ export type AIProviderConfiguration = {
   timeoutMs: number;
   inactivityTimeoutMs: number;
   maxRetries: number;
+  maxTokens?: number;
   temperature: number;
   supportsJsonSchema: boolean;
 };

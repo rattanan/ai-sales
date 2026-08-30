@@ -58,6 +58,7 @@ export async function createOrganizationAIProvider(organizationId: string) {
         timeoutMs: chatEndpoint.timeoutMs,
         inactivityTimeoutMs: chatEndpoint.timeoutMs,
         maxRetries: chatEndpoint.maxRetries,
+        maxTokens: chatEndpoint.maxTokens ?? undefined,
         temperature: chatEndpoint.temperature ?? 0.1,
         supportsJsonSchema: true,
       }),
@@ -82,6 +83,7 @@ export async function createOrganizationAIProvider(organizationId: string) {
       timeoutMs: provider.timeoutMs,
       inactivityTimeoutMs: provider.timeoutMs,
       maxRetries: configuration.AI_MAX_RETRIES,
+      maxTokens: provider.maxTokens,
       temperature: provider.temperature,
       supportsJsonSchema: provider.supportsJsonSchema,
     });

@@ -11,6 +11,7 @@ const configuration: AIProviderConfiguration = {
   timeoutMs: 2_000,
   inactivityTimeoutMs: 500,
   maxRetries: 0,
+  maxTokens: 4_096,
   temperature: 0.1,
   supportsJsonSchema: true,
 };
@@ -80,6 +81,7 @@ describe("OpenAI-compatible provider", () => {
       "json_schema",
     );
     expect(JSON.parse(String(init.body)).stream).toBe(true);
+    expect(JSON.parse(String(init.body)).max_tokens).toBe(4_096);
   });
 
   it("extracts valid JSON from an accidental Markdown code fence", async () => {

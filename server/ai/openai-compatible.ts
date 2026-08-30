@@ -429,6 +429,9 @@ export class OpenAICompatibleProvider implements AIProvider {
     const body = {
       model: this.configuration.model,
       temperature: this.configuration.temperature,
+      ...(this.configuration.maxTokens
+        ? { max_tokens: this.configuration.maxTokens }
+        : {}),
       stream: true,
       messages: [
         {

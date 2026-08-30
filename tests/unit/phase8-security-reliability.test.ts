@@ -221,6 +221,116 @@ describe("Phase 8 circuit breaker and queue backpressure", () => {
     expect(fallbackGenerate).toHaveBeenCalledOnce();
   });
 
+  it("does not open the availability circuit for task-specific invalid output", async () => {
+    resetCircuitBreakersForTests();
+    const generate = vi.fn(async () =>
+      failure("AI_INVALID_RESPONSE", "Output did not match the schema."),
+    );
+    const primary: AIProvider = {
+      name: "primary",
+      model: "primary-model",
+      capabilities: {
+        structuredOutput: "json-schema",
+        capturesTokenUsage: true,
+      },
+      generateStructuredOutput:
+        generate as unknown as AIProvider["generateStructuredOutput"],
+      healthCheck: async () =>
+        success({
+          available: true,
+          provider: "primary",
+          model: "primary-model",
+          latencyMs: 1,
+        }),
+    };
+    const resilient = new ResilientAIProvider(primary, undefined, {
+      key: "invalid-output-test",
+      failureThreshold: 1,
+      cooldownMs: 60_000,
+    });
+
+    const first = await resilient.generateStructuredOutput({
+      requestId: "request-1",
+      schemaName: "answer",
+      outputSchema: z.object({ answer: z.string() }),
+      systemPrompt: "Return evidence.",
+      userPrompt: "Question",
+      promptVersion: "v1",
+    });
+    const second = await resilient.generateStructuredOutput({
+      requestId: "request-2",
+      schemaName: "answer",
+      outputSchema: z.object({ answer: z.string() }),
+      systemPrompt: "Return evidence.",
+      userPrompt: "Question",
+      promptVersion: "v1",
+    });
+
+    expect(first).toMatchObject({
+      ok: false,
+      error: { code: "AI_INVALID_RESPONSE" },
+    });
+    expect(second).toMatchObject({
+      ok: false,
+      error: { code: "AI_INVALID_RESPONSE" },
+    });
+    expect(generate).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns the triggering failure before reporting an open circuit", async () => {
+    resetCircuitBreakersForTests();
+    const generate = vi.fn(async () => failure("AI_TIMEOUT", "Timed out."));
+    const primary: AIProvider = {
+      name: "primary",
+      model: "primary-model",
+      capabilities: {
+        structuredOutput: "json-schema",
+        capturesTokenUsage: true,
+      },
+      generateStructuredOutput:
+        generate as unknown as AIProvider["generateStructuredOutput"],
+      healthCheck: async () =>
+        success({
+          available: true,
+          provider: "primary",
+          model: "primary-model",
+          latencyMs: 1,
+        }),
+    };
+    const resilient = new ResilientAIProvider(primary, undefined, {
+      key: "triggering-failure-test",
+      failureThreshold: 1,
+      cooldownMs: 60_000,
+    });
+    const structuredRequest = {
+      requestId: "request-1",
+      schemaName: "answer",
+      outputSchema: z.object({ answer: z.string() }),
+      systemPrompt: "Return evidence.",
+      userPrompt: "Question",
+      promptVersion: "v1",
+    };
+
+    const first = await resilient.generateStructuredOutput(structuredRequest);
+    const second = await resilient.generateStructuredOutput({
+      ...structuredRequest,
+      requestId: "request-2",
+    });
+
+    expect(first).toMatchObject({
+      ok: false,
+      error: { code: "AI_TIMEOUT", message: "Timed out." },
+    });
+    expect(second).toMatchObject({
+      ok: false,
+      error: {
+        code: "AI_PROVIDER_ERROR",
+        diagnostics: { circuitOpen: true },
+      },
+    });
+    expect(generate).toHaveBeenCalledOnce();
+  });
+
   it("rejects producers at the configured queue depth", () => {
     expect(queueHasCapacity({ waiting: 8, delayed: 1, active: 0 }, 10)).toBe(
       true,

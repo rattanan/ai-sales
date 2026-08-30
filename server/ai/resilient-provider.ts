@@ -50,12 +50,9 @@ const breakers = new Map<string, CircuitBreaker>();
 function retryable(result: AppResult<unknown>) {
   return (
     !result.ok &&
-    [
-      "AI_PROVIDER_ERROR",
-      "AI_RATE_LIMITED",
-      "AI_TIMEOUT",
-      "AI_INVALID_RESPONSE",
-    ].includes(result.error.code)
+    ["AI_PROVIDER_ERROR", "AI_RATE_LIMITED", "AI_TIMEOUT"].includes(
+      result.error.code,
+    )
   );
 }
 
@@ -93,6 +90,7 @@ export class ResilientAIProvider implements AIProvider {
   }
 
   async generateStructuredOutput<T>(request: AIRequest<T>) {
+    let primaryFailure: AppResult<AIResponse<T>> | undefined;
     if (this.breaker.canRequest()) {
       const primary = await this.primary.generateStructuredOutput(request);
       if (primary.ok) {
@@ -100,6 +98,7 @@ export class ResilientAIProvider implements AIProvider {
         return this.normalize(primary);
       }
       if (!retryable(primary)) return primary;
+      primaryFailure = primary;
       this.breaker.recordFailure();
       logger.warn("Primary AI provider failed; evaluating governed fallback", {
         requestId: request.requestId,
@@ -109,7 +108,11 @@ export class ResilientAIProvider implements AIProvider {
         circuit: this.breaker.snapshot().state,
       });
     }
-    if (!this.fallback)
+    if (!this.fallback) {
+      // Preserve the actionable provider error for the request that trips the
+      // circuit. Only requests skipped while the circuit is already open
+      // should receive the circuit-open diagnostic.
+      if (primaryFailure) return primaryFailure;
       return failure(
         "AI_PROVIDER_ERROR",
         "The AI provider circuit is open and no fallback is configured.",
@@ -118,6 +121,7 @@ export class ResilientAIProvider implements AIProvider {
           diagnostics: { circuitOpen: true },
         },
       );
+    }
     const fallback = await this.fallback.generateStructuredOutput(request);
     if (fallback.ok)
       logger.warn("AI request completed through configured fallback", {
