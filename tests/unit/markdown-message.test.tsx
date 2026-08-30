@@ -27,6 +27,24 @@ describe("MarkdownMessage", () => {
     expect(screen.getByRole("table")).toBeTruthy();
   });
 
+  it("renders model-generated br tags as line breaks inside a table", () => {
+    const { container } = render(
+      <MarkdownMessage
+        content={
+          "| รายการ | รายละเอียด |\n|---|---|\n| วัตถุประสงค์ | ข้อหนึ่ง<br>ข้อสอง<br />ข้อสาม<br/>ข้อสี่ |"
+        }
+      />,
+    );
+
+    expect(container.querySelectorAll("td br")).toHaveLength(3);
+    expect(
+      screen
+        .getByRole("cell", { name: /ข้อหนึ่ง/ })
+        .textContent?.replaceAll("\n", ""),
+    ).toBe("ข้อหนึ่งข้อสองข้อสามข้อสี่");
+    expect(container.textContent).not.toContain("<br");
+  });
+
   it("turns citation markers into buttons when a handler is given", () => {
     const onCite = vi.fn();
     render(<MarkdownMessage content="ตอบแล้ว [3]" onCite={onCite} />);

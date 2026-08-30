@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import rehypeHighlight from "rehype-highlight";
+import type { Root, RootContent } from "mdast";
 import type { PluggableList } from "unified";
 import { Check, Copy } from "lucide-react";
 import {
@@ -15,11 +16,34 @@ import {
 import { MermaidDiagram } from "@/components/chat/mermaid-diagram";
 
 /**
- * Raw HTML is deliberately NOT enabled: `rehype-raw` is absent, so
- * react-markdown escapes any markup the model emits. That removes the whole
- * XSS surface without a sanitizer in the pipeline.
+ * Raw HTML is deliberately NOT enabled: `rehype-raw` is absent, so arbitrary
+ * markup from the model cannot reach the DOM. The remark plugin below converts
+ * only an exact, attribute-free `<br>` tag into a Markdown line-break node.
  */
-const REMARK_PLUGINS: PluggableList = [remarkGfm, remarkMath];
+function remarkSafeLineBreaks() {
+  return (tree: Root) => {
+    const replaceLineBreaks = (children: RootContent[]) => {
+      for (let index = 0; index < children.length; index += 1) {
+        const child = children[index];
+        if (child.type === "html" && /^<br\s*\/?>$/i.test(child.value)) {
+          children[index] = { type: "break" };
+          continue;
+        }
+        if ("children" in child) {
+          replaceLineBreaks(child.children as RootContent[]);
+        }
+      }
+    };
+
+    replaceLineBreaks(tree.children);
+  };
+}
+
+const REMARK_PLUGINS: PluggableList = [
+  remarkGfm,
+  remarkMath,
+  remarkSafeLineBreaks,
+];
 const REHYPE_PLUGINS: PluggableList = [
   rehypeKatex,
   // `detect` keeps an unlabelled fence highlighted instead of falling back to
